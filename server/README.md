@@ -9,6 +9,22 @@ connects to it over Wi-Fi.
 run in CI; it gets fixes, not new features. Its prompts are the older ones in `hidagent/agent.py` and are not synced
 with `prompts/`.
 
+## Web layout
+
+Use the upper-right **Layout: portrait / landscape** button to switch layouts.
+Portrait retains the three columns. Landscape places a wide phone preview above
+its live log on the left, keeping task controls on the right (small screens stack
+vertically). The browser remembers the choice. This changes presentation only:
+it does not rotate the iPhone or replace pointer calibration after a device rotation.
+
+Layout checks (run in a development container, not the production image):
+
+```sh
+node --test tests/layout.test.cjs
+# Optional real-browser check: requires playwright-core and Chromium.
+node --test tests/layout.browser.cjs
+```
+
 ## Docker / Kubernetes
 
 For a Linux amd64 host-network image of this legacy server, including UxPlay and

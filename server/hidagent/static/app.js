@@ -20,12 +20,30 @@ function applyLang() {
   }));
   shown = "";  // re-render steps in the new language
   if (typeof applyMotion === "function") applyMotion();
+  if (typeof applyLayout === "function") applyLayout();
 }
 document.querySelectorAll("#lang button").forEach((b) => b.addEventListener("click", () => {
   lang = b.dataset.lang;
   try { localStorage.setItem("lang", lang); } catch { /* private mode */ }
   applyLang();
 }));
+
+// ---- layout (presentation only; the phone's orientation is unchanged) -------------------
+
+let landscape = false;
+try { landscape = localStorage.getItem("layout") === "landscape"; } catch { /* private mode */ }
+function applyLayout() {
+  document.body.classList.toggle("landscape", landscape);
+  $("layout").textContent = t(landscape ? "layoutLandscape" : "layoutPortrait");
+  $("layout").setAttribute("aria-pressed", String(landscape));
+  $("layout").setAttribute("aria-label", t("layoutToggle"));
+}
+$("layout").addEventListener("click", () => {
+  landscape = !landscape;
+  try { localStorage.setItem("layout", landscape ? "landscape" : "portrait"); } catch { /* private mode */ }
+  applyLayout();
+});
+applyLayout();
 
 // ---- motion (tap ripples, flowing swipe paths); remembered per browser -------------------
 

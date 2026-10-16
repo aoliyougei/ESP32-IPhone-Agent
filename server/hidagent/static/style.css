@@ -56,8 +56,9 @@ main { display: grid; grid-template-columns: auto minmax(300px, 1fr) minmax(420p
 
 /* 3. work */
 .work { display: flex; flex-direction: column; gap: 16px; }
-.top { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+.top { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
 .top p { margin: 2px 0 0; color: var(--muted); }
+.view-controls { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex: none; }
 .lang { display: flex; flex: none; }
 .models { display: flex; gap: 8px; margin-left: auto; }
 .models div { border: 1px solid var(--line); border-radius: 10px; padding: 4px 10px; display: flex; flex-direction: column; min-width: 150px; }
@@ -129,9 +130,28 @@ dialog img { display: block; max-height: 82vh; border-radius: 16px; }
 .zoombox { position: relative; }
 dialog p { color: #fff; max-width: 400px; margin: 10px 0 0; }
 
+/* Landscape keeps the task pane on the right and stacks the phone above its log. */
+body.landscape main {
+  grid-template-columns: minmax(0, 1fr) minmax(420px, 1.1fr);
+  grid-template-rows: auto minmax(180px, 1fr);
+  grid-template-areas: "phone work" "log work";
+}
+body.landscape .phone { grid-area: phone; max-height: 70vh; }
+body.landscape .log { grid-area: log; border-top: 1px solid var(--line); }
+body.landscape .work { grid-area: work; }
+body.landscape .phone .screen {
+  width: min(100%, calc(48vh * 1080 / 498));
+  height: auto;
+  aspect-ratio: 1080 / 498;
+}
+body.landscape .phone .manual { flex-shrink: 0; }
+
 @media (max-width: 1100px) {
   main { grid-template-columns: auto 1fr; height: auto; }
   .work { grid-column: 1 / -1; border-top: 1px solid var(--line); }
+  body.landscape main { height: 100vh; }
+  body.landscape .col { overflow: auto; }
+  body.landscape .work { grid-column: 2; border-top: 0; }
   .col { overflow: visible; }
   .log { max-height: 100vh; overflow: auto; }
 }
@@ -139,4 +159,12 @@ dialog p { color: #fff; max-width: 400px; margin: 10px 0 0; }
   main { grid-template-columns: 1fr; }
   .screen { height: 70vh; }
   .log { max-height: 60vh; }
+  body.landscape main {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+    grid-template-areas: "phone" "log" "work";
+    height: auto;
+  }
+  body.landscape .work { grid-column: 1; border-top: 1px solid var(--line); }
+  body.landscape .log { height: 35vh; }
 }

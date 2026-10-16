@@ -1,6 +1,7 @@
 // UI strings and plain-language step descriptions, in English and Simplified Chinese.
 const I18N = {
   en: {
+    layoutPortrait: "Layout: portrait", layoutLandscape: "Layout: landscape", layoutToggle: "Toggle landscape layout",
     waiting: "Waiting for the phone screen…", liveCaption: "Live screen · click to tap, drag to swipe",
     estop: "■ Emergency stop (Esc)", motionOn: "Motion: on", motionOff: "Motion: off", estopHint: "Stops the AI and lets go of the screen",
     clear: "Clear history",
@@ -20,6 +21,7 @@ const I18N = {
       "Open Settings and go to Wi-Fi", "Open Notes and write \"hello\""],
   },
   zh: {
+    layoutPortrait: "布局：竖屏", layoutLandscape: "布局：横屏", layoutToggle: "切换横竖布局",
     waiting: "等待手机画面…", liveCaption: "实时画面 · 点击 = 点按，拖动 = 滑动",
     estop: "■ 紧急停止（Esc）", motionOn: "动效：开", motionOff: "动效：关", estopHint: "立即停止 AI，并松开屏幕",
     clear: "清空记录",

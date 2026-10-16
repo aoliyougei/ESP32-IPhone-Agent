@@ -1,0 +1,9 @@
+*
+!Dockerfile
+!pyproject.toml
+!hidagent/
+!hidagent/**
+!docker/
+!docker/**
+**/__pycache__
+**/*.pyc

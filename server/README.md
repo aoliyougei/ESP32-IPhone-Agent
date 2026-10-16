@@ -9,5 +9,11 @@ connects to it over Wi-Fi.
 run in CI; it gets fixes, not new features. Its prompts are the older ones in `hidagent/agent.py` and are not synced
 with `prompts/`.
 
+## Docker / Kubernetes
+
+For a Linux amd64 host-network image of this legacy server, including UxPlay and
+GStreamer, see [docker/README.md](docker/README.md). A single-instance Kubernetes
+`hostNetwork` example is included. Real iPhone mirroring still requires a LAN-connected host.
+
 Note: the current firmware speaks BLE, not the TCP protocol this server expects. To run the legacy setup, check out
 `legacy` (or `v0.1.0`) and follow its README.

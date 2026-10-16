@@ -1,0 +1,94 @@
+# Replace image, node label and model settings before applying.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hidagent-data
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hidagent
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: hidagent
+  template:
+    metadata:
+      labels:
+        app: hidagent
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      nodeSelector:
+        kubernetes.io/os: linux
+        kubernetes.io/arch: amd64
+        hidagent-lan: "true"
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: hidagent
+          image: hidagent:local
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PORT
+              value: "8890"
+            - name: DEVICE_PORT
+              value: "7300"
+            - name: AIRPLAY_NAME
+              value: "iPhone Agent A"
+            - name: AIRPLAY_PORT
+              value: "35000"
+            - name: AIRPLAY_MAC
+              value: "02:00:00:00:00:01"
+            - name: LLM_BASE_URL
+              value: "https://api.openai.com/v1"
+            - name: LLM_MODEL
+              value: "gpt-4o-mini"
+            - name: LLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hidagent-model
+                  key: LLM_API_KEY
+          securityContext:
+            privileged: false
+            allowPrivilegeEscalation: false
+          ports:
+            - name: web
+              containerPort: 8890
+              hostPort: 8890
+            - name: board
+              containerPort: 7300
+              hostPort: 7300
+          readinessProbe:
+            httpGet:
+              path: /api/status
+              port: web
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/status
+              port: web
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "500m"
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: hidagent-data

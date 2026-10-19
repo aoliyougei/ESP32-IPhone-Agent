@@ -1,0 +1,22 @@
+services:
+  manager:
+    build: .
+    image: esp32-server-manager:local
+    restart: unless-stopped
+    ports:
+      - "8880:8880"
+    environment:
+      MANAGER_ADMIN_TOKEN: ${MANAGER_ADMIN_TOKEN:?Set MANAGER_ADMIN_TOKEN in .env}
+    volumes:
+      - manager-data:/data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8880/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+volumes:
+  manager-data:

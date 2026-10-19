@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ESP32 手机管理台</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/app.js" defer></script>
+</head>
+<body>
+<header class="top"><div><h1>ESP32 手机管理台</h1><p>左键进入控制台 · 右键管理连接 · 配置对所有访问者共享</p></div><div id="overview-controls"><button id="layout-toggle" type="button" aria-pressed="false">布局：纵向</button><button id="admin">管理员凭证</button></div><div id="console-navigation" hidden><strong id="console-name"></strong><button id="return-list" title="返回不会停止正在运行的任务">← 返回设备列表</button></div></header>
+<p id="notice" role="status" aria-live="polite"></p>
+<main id="servers" aria-label="Server 列表"></main>
+<section id="console-view" hidden>
+  <iframe id="console-frame" title="手机控制台" sandbox="allow-scripts allow-same-origin allow-modals"></iframe>
+</section>
+<div id="menu" class="menu" role="group" aria-label="Server 操作" hidden>
+  <button data-action="connect">连接</button><button data-action="edit">编辑</button><button data-action="delete" class="danger">删除</button>
+</div>
+<dialog id="editor">
+  <form id="server-form">
+    <h2 id="editor-title">添加 Server</h2>
+    <label>名称<input name="name" maxlength="80" required placeholder="测试手机 A"></label>
+    <label>IP / 域名<input name="host" maxlength="253" required placeholder="10.0.30.51" autocapitalize="none" spellcheck="false"></label>
+    <label>端口<input name="port" type="number" min="1" max="65535" value="8890" required></label>
+    <p>使用 HTTP 连接现有控制台。请只添加你信任的 Server。</p>
+    <p class="error" id="form-error" role="alert"></p>
+    <div class="buttons"><button type="button" id="cancel-edit">取消</button><button class="primary" type="submit" id="save">保存</button></div>
+  </form>
+</dialog>
+<dialog id="credentials">
+  <form id="token-form">
+    <h2>管理员凭证</h2><p>用于添加、编辑和删除。仅保留在当前页面内存中，刷新后清除。</p>
+    <label>Token<input id="token" type="password" autocomplete="off" required></label>
+    <div class="buttons"><button type="button" id="cancel-token">取消</button><button class="primary" type="submit">确认</button></div>
+  </form>
+</dialog>
+</body>
+</html>

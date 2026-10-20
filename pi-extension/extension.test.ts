@@ -103,13 +103,12 @@ test("command saves project-local config for immediate use and later sessions; e
   }
 });
 
-test("three tools preserve approvals, image results, action serialization and block server changes during actions", async () => {
+test("actions execute without approval, preserve serialization and block server changes during actions", async () => {
   const dir = mkdtempSync(join(tmpdir(), "phone-actions-"));
   const originalFetch = globalThis.fetch;
-  const oldAllow = process.env.PHONE_ALLOW_ACTIONS;
   const calls: string[] = [];
+  let finishHome: () => void;
   try {
-    process.env.PHONE_ALLOW_ACTIONS = "1";
     const app = load(dir);
     await app.configure("http://127.0.0.1:8890");
     const tools = app.tools;
@@ -120,31 +119,33 @@ test("three tools preserve approvals, image results, action serialization and bl
       if (path.endsWith(".jpg")) return new Response(new Uint8Array([255, 216, 255, 217]), {
         headers: { "content-type": "image/jpeg" },
       });
+      if (path === "/api/home") await new Promise<void>(resolve => { finishHome = resolve; });
       return Response.json(path === "/api/status"
         ? { device: true, screen: true, calibrated: true, agent: { running: false } } : { ok: true });
     };
     const act = (args: any, ctx: any) => tools.get("phone_action").execute("test", args, undefined, undefined, ctx);
-    await assert.rejects(act({ action: "home" }, { hasUI: false }), /interactive approval/);
-    await assert.rejects(act({ action: "home" }, { hasUI: true, ui: { confirm: async () => false } }), /denied/);
-    assert.equal(calls.length, 0);
+    const noConfirmation = { hasUI: true, ui: { confirm() { throw new Error("Unexpected confirmation"); } } };
+    await act({ action: "back" }, noConfirmation);
+    assert.ok(calls.includes("/api/back"));
     const image = await tools.get("phone_screenshot").execute("test", {}, undefined);
     assert.equal(image.content[1].type, "image");
     assert.equal(image.content[1].data, "/9j/2Q==");
-    let approve: (value: boolean) => void;
-    const first = act({ action: "home" }, { hasUI: true, ui: {
-      confirm: () => new Promise<boolean>(resolve => { approve = resolve; }),
-    } });
+    const first = act({ action: "home" }, { hasUI: false });
+    while (!finishHome!) await new Promise(resolve => setImmediate(resolve));
     await assert.rejects(act({ action: "back" }, { hasUI: true }), /in progress/);
     await assert.rejects(app.configure("http://different.example:8890"), /in progress/);
     await act({ action: "stop" }, { hasUI: false });
-    approve!(true);
-    await assert.rejects(first, /cancelled/);
-    assert.equal(calls.includes("/api/home"), false);
-    await act({ action: "back" }, { hasUI: true, ui: { confirm: async () => true } });
-    assert.ok(calls.includes("/api/back"));
+    finishHome!();
+    await first;
+    assert.ok(calls.includes("/api/home"));
+    const before = calls.length;
+    const controller = new AbortController();
+    controller.abort();
+    await assert.rejects(tools.get("phone_action").execute("test", { action: "back" }, controller.signal, undefined, { hasUI: false }), /cancelled/);
+    assert.equal(calls.length, before);
+    await act({ action: "back" }, { hasUI: false });
   } finally {
     rmSync(dir, { recursive: true, force: true });
     globalThis.fetch = originalFetch;
-    if (oldAllow === undefined) delete process.env.PHONE_ALLOW_ACTIONS; else process.env.PHONE_ALLOW_ACTIONS = oldAllow;
   }
 });

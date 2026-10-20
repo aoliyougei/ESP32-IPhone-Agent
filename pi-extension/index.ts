@@ -11,7 +11,6 @@ export default function (pi: ExtensionAPI) {
   let configPath: string | undefined;
   let configError: unknown;
   let acting = false;
-  let stopGeneration = 0;
   pi.on("session_start", (_event, ctx) => {
     configPath = resolve(ctx.cwd, ".pi", "phone.json");
     url = undefined;
@@ -117,7 +116,7 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool(defineTool({
     name: "phone_action",
     label: "Phone action",
-    description: "Execute one real iPhone action through ESP32. Requires web UI calibration. Coordinates are 0–1 of the screenshot. Take a screenshot before and after acting. Never run actions in parallel or blindly retry an ambiguous failure. Ask explicit permission before purchases, sending messages, deleting data or changing security settings. stop releases inputs but cannot undo completed actions. Every action except stop needs interactive approval.",
+    description: "Execute one real iPhone action through ESP32. Requires web UI calibration. Coordinates are 0–1 of the screenshot. Take a screenshot before and after acting. Never run actions in parallel or blindly retry an ambiguous failure. Ask explicit permission before purchases, sending messages, deleting data or changing security settings. stop releases inputs but cannot undo completed actions. Actions execute immediately without a per-action confirmation dialog.",
     parameters: Type.Object({
       action: Type.Union(["tap", "swipe", "type", "key", "home", "back", "stop"].map(value => Type.Literal(value))),
       x: Type.Optional(Type.Number({ minimum: 0, maximum: 1 })),
@@ -128,20 +127,13 @@ export default function (pi: ExtensionAPI) {
       y2: Type.Optional(Type.Number({ minimum: 0, maximum: 1 })),
       text: Type.Optional(Type.String({ minLength: 1, maxLength: 1000 })),
     }),
-    async execute(_id, params, signal, _update, ctx) {
+    async execute(_id, params, signal) {
       const phone = client();
       if (acting && params.action !== "stop") throw new Error("Another phone action is in progress");
       const isStop = params.action === "stop";
-      if (isStop) stopGeneration++;
-      const generation = stopGeneration;
       if (!isStop) acting = true;
       try {
-        if (!isStop) {
-          if (!ctx.hasUI) throw new Error("Phone actions require interactive approval");
-          const summary = params.text ? `${params.action}: ${params.text.length} characters` : JSON.stringify(params);
-          if (!await ctx.ui.confirm("Allow real iPhone operation?", summary)) throw new Error("Phone action denied");
-        }
-        if (signal?.aborted || generation !== stopGeneration) throw new Error("Phone action cancelled");
+        if (signal?.aborted) throw new Error("Phone action cancelled");
         const result = await phone.action(params, signal);
         return { content: [{ type: "text", text: JSON.stringify(result) }], details: result };
       } finally {

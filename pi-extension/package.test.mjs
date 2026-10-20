@@ -1,11 +1,18 @@
 // Run in a development container with the Pi package installed.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { DefaultPackageManager, SettingsManager } from '@earendil-works/pi-coding-agent';
+
+test('installed package has a semantic version matching the extension package', () => {
+  const root = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  const extension = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
+  assert.match(root.version, /^\d+\.\d+\.\d+$/);
+  assert.equal(extension.version, root.version);
+});
 
 test('repository package exposes only the iPhone extension entry point', async () => {
   const root = fileURLToPath(new URL('../', import.meta.url));

@@ -6,25 +6,31 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import extension from "./index.ts";
 
-test("project .env supplies a startup-only URL without changing process environment or disabling approval", async () => {
+test("session cwd supplies a startup-only URL when process cwd differs, without disabling approval", async () => {
   const cwd = process.cwd();
   const dir = mkdtempSync(join(tmpdir(), "phone-env-"));
   const oldURL = process.env.PHONE_SERVER_URL, oldAllow = process.env.PHONE_ALLOW_ACTIONS;
   const originalFetch = globalThis.fetch;
-  const register = () => {
+  const register = (sessionCwd = dir) => {
     const tools = new Map<string, any>();
-    extension({ registerTool(tool: any) { tools.set(tool.name, tool); } } as any);
+    let start: any;
+    extension({
+      registerTool(tool: any) { tools.set(tool.name, tool); },
+      on(event: string, handler: any) { if (event === "session_start") start = handler; },
+    } as any);
+    start?.({}, { cwd: sessionCwd });
     return tools;
   };
   try {
-    process.chdir(dir);
+    assert.notEqual(process.cwd(), dir);
     delete process.env.PHONE_SERVER_URL;
     delete process.env.PHONE_ALLOW_ACTIONS;
     const missing = register();
-    await assert.rejects(missing.get("phone_status").execute("test", {}, undefined), /PHONE_SERVER_URL/);
-    writeFileSync(".env", '# project settings\r\nexport PHONE_SERVER_URL="http://project.example:8890" # trusted server\r\nPHONE_ALLOW_ACTIONS=1\r\nOTHER_SETTING=ignored\r\n');
+    await assert.rejects(missing.get("phone_status").execute("test", {}, undefined),
+      error => String(error).includes(join(dir, ".env")));
+    writeFileSync(join(dir, ".env"), '# project settings\r\nexport PHONE_SERVER_URL="http://project.example:8890" # trusted server\r\nPHONE_ALLOW_ACTIONS=1\r\nOTHER_SETTING=ignored\r\n');
     const tools = register();
-    writeFileSync(".env", "PHONE_SERVER_URL=http://changed.example:8890\n");
+    writeFileSync(join(dir, ".env"), "PHONE_SERVER_URL=http://changed.example:8890\n");
     globalThis.fetch = async (url) => Response.json({ requested: String(url) });
     const status = await tools.get("phone_status").execute("test", {}, undefined);
     assert.equal(status.details.requested, "http://project.example:8890/api/status");
@@ -36,17 +42,21 @@ test("project .env supplies a startup-only URL without changing process environm
     process.env.PHONE_SERVER_URL = "http://override.example:8890";
     const overridden = register();
     assert.equal((await overridden.get("phone_status").execute("test", {}, undefined)).details.requested,
+      "http://changed.example:8890/api/status");
+    writeFileSync(join(dir, ".env"), "PHONE_SERVER_URL=\n");
+    assert.equal((await register().get("phone_status").execute("test", {}, undefined)).details.requested,
+      "http://override.example:8890/api/status");
+    rmSync(join(dir, ".env"));
+    assert.equal((await register().get("phone_status").execute("test", {}, undefined)).details.requested,
       "http://override.example:8890/api/status");
     delete process.env.PHONE_SERVER_URL;
-    writeFileSync(".env", "PHONE_SERVER_URL=http://invalid.example/path\n");
+    writeFileSync(join(dir, ".env"), "PHONE_SERVER_URL=http://invalid.example/path\n");
     await assert.rejects(register().get("phone_status").execute("test", {}, undefined), /origin/);
-    mkdirSync("child");
-    process.chdir("child");
-    await assert.rejects(register().get("phone_status").execute("test", {}, undefined), /PHONE_SERVER_URL/);
-    process.chdir(dir);
-    rmSync(".env");
-    mkdirSync(".env");
-    assert.throws(register, /EISDIR/);
+    mkdirSync(join(dir, "child"));
+    await assert.rejects(register(join(dir, "child")).get("phone_status").execute("test", {}, undefined), /PHONE_SERVER_URL/);
+    rmSync(join(dir, ".env"));
+    mkdirSync(join(dir, ".env"));
+    await assert.rejects(register().get("phone_status").execute("test", {}, undefined), /EISDIR/);
   } finally {
     process.chdir(cwd);
     rmSync(dir, { recursive: true, force: true });
@@ -62,7 +72,10 @@ test("registers three tools without connecting; approvals, image results and act
   const oldURL = process.env.PHONE_SERVER_URL, oldAllow = process.env.PHONE_ALLOW_ACTIONS;
   process.env.PHONE_SERVER_URL = "http://127.0.0.1:8890";
   delete process.env.PHONE_ALLOW_ACTIONS;
-  extension({ registerTool(tool: any) { tools.set(tool.name, tool); } } as any);
+  extension({
+    registerTool(tool: any) { tools.set(tool.name, tool); },
+    on(event: string, handler: any) { if (event === "session_start") handler({}, { cwd: process.cwd() }); },
+  } as any);
   assert.deepEqual([...tools.keys()], ["phone_status", "phone_screenshot", "phone_action"]);
   const calls: string[] = [];
   globalThis.fetch = async (url) => {

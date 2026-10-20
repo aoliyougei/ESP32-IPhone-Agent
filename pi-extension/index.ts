@@ -6,17 +6,26 @@ import { resolve } from "node:path";
 import { parseEnv } from "node:util";
 
 export default function (pi: ExtensionAPI) {
-  // Snapshot only the address; project files must never disable action approval.
-  let url = process.env.PHONE_SERVER_URL;
-  if (url === undefined) {
+  // Session cwd can differ from process cwd in Web/RPC/SDK hosts.
+  let url: string | undefined;
+  let envPath: string | undefined;
+  let configError: unknown;
+  pi.on("session_start", (_event, ctx) => {
+    envPath = resolve(ctx.cwd, ".env");
+    url = undefined;
+    configError = undefined;
     try {
-      url = parseEnv(readFileSync(resolve(process.cwd(), ".env"), "utf8")).PHONE_SERVER_URL;
+      url = parseEnv(readFileSync(envPath, "utf8")).PHONE_SERVER_URL;
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") configError = error;
     }
-  }
+    url = url || process.env.PHONE_SERVER_URL;
+  });
   const client = () => {
-    if (!url) throw new Error("Set PHONE_SERVER_URL in the environment or project .env to the trusted legacy Server origin before starting Pi");
+    if (configError) throw new Error(`Cannot read phone configuration at ${envPath}: ${(configError as Error).message}`);
+    if (!url) throw new Error(envPath
+      ? `Set PHONE_SERVER_URL in the environment or ${envPath}, then reload the session`
+      : "Phone configuration is not initialized; start or reload the session");
     return new PhoneClient(url);
   };
   let acting = false;

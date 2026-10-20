@@ -8,7 +8,7 @@
 
 ## 文件
 
-- `index.ts`：注册 Pi 工具、交互确认与本扩展内的动作互斥。
+- `index.ts`：读取项目连接配置、注册 Pi 工具、交互确认与本扩展内的动作互斥。
 - `client.mjs`：受限 HTTP 客户端、输入校验、状态检查、超时和响应大小限制。
 - `*.test.*`：不连接真实手机的测试。
 
@@ -24,6 +24,27 @@ pi --extension /absolute/path/ESP32-IPhone-Agent/pi-extension/index.ts
 不要在 Pi 的项目或全局 extensions 目录只复制 `index.ts`；它需要同目录的 `client.mjs`。
 如果要持久安装，手动将**整个目录**复制到 `~/.pi/agent/extensions/iphone-agent/`。
 Pi 提供官方包导入；实际加载不需要在本目录执行 npm install，也不需要构建。
+
+### 按项目使用 `.env`
+
+安装整个插件目录后，可在**启动 Pi 时所在的工作项目目录**创建 `.env`：
+
+```dotenv
+PHONE_SERVER_URL=http://10.0.30.51:8890
+```
+
+然后在该项目目录直接运行 `pi`（未持久安装时仍需 `--extension`），不需要手动 `source .env`。
+不同项目可以配置不同的 Server。这里填写具体 Server 地址，不是 Manager 地址。
+
+- 优先使用进程环境中的 `PHONE_SERVER_URL`，未设置时才读取当前工作目录的 `.env`。
+- 仅读取当前目录，不向父目录查找，也不读取插件安装目录的 `.env`。
+- 插件加载时读取一次；修改地址后请重启 Pi。
+- 使用 Node.js 内置 `.env` 解析，支持引号、注释和 `export`，不执行 Shell 或展开变量。
+- 仅取 `PHONE_SERVER_URL`，不向 `process.env` 注入任何变量，尤其不会从文件加载 `PHONE_ALLOW_ACTIONS`。
+- `.env` 不存在不影响插件注册；调用工具时若没有配置地址会报错。文件读取错误（除不存在）会阻止插件加载。
+
+请只在可信项目中使用此功能：项目 `.env` 可改变截图来源和手机控制目标。
+将 `.env` 加入项目 `.gitignore`，不要让模型自行修改连接配置或关闭确认。
 
 URL 必须是操作者配置的 http(s) origin，不支持路径前缀、URL 用户密码或查询参数。
 工具参数不接受任意 Server 地址；第一版只控制一个 Server。
@@ -91,5 +112,5 @@ npx tsc --noEmit --allowJs --allowImportingTsExtensions --module nodenext \
   --moduleResolution nodenext --target es2022 --skipLibCheck index.ts extension.test.ts
 ```
 
-检查覆盖模拟 HTTP、坐标校验、设备就绪门、禁止重试/重定向、图片结果、用户确认和动作互斥。
+检查覆盖项目 `.env` 配置、环境变量优先级、地址快照与配置隔离、模拟 HTTP、坐标校验、设备就绪门、禁止重试/重定向、图片结果、用户确认和动作互斥。
 不包括真实手机、实际模型看图或完整 Pi TUI/RPC 加载验证。

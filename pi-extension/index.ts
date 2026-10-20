@@ -1,12 +1,22 @@
 import { Type } from "@earendil-works/pi-ai";
 import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { PhoneClient } from "./client.mjs";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { parseEnv } from "node:util";
 
 export default function (pi: ExtensionAPI) {
-  // Configuration is operator-owned, never supplied by model tool arguments.
+  // Snapshot only the address; project files must never disable action approval.
+  let url = process.env.PHONE_SERVER_URL;
+  if (url === undefined) {
+    try {
+      url = parseEnv(readFileSync(resolve(process.cwd(), ".env"), "utf8")).PHONE_SERVER_URL;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+  }
   const client = () => {
-    const url = process.env.PHONE_SERVER_URL;
-    if (!url) throw new Error("Set PHONE_SERVER_URL to the trusted legacy Server origin before starting Pi");
+    if (!url) throw new Error("Set PHONE_SERVER_URL in the environment or project .env to the trusted legacy Server origin before starting Pi");
     return new PhoneClient(url);
   };
   let acting = false;

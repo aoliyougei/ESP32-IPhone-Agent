@@ -16,10 +16,16 @@ function load(cwd: string) {
     on(event: string, handler: any) { if (event === "session_start") start = handler; },
   } as any);
   start({}, { cwd });
-  return { tools, configure: (input: string | undefined, hasUI = true) =>
+  const menu = (answers: (string | undefined)[], confirmed = true, hasUI = true, notices: string[] = []) =>
     commands.get("esp32-iphone-server").handler("", { cwd, hasUI, ui: {
-      input: async () => input, notify() {},
-    } }) };
+      select: async () => answers.shift(), input: async () => answers.shift(),
+      confirm: async () => confirmed, notify(message: string) { notices.push(message); },
+    } });
+  return { tools, menu, configure: (input: string | undefined, hasUI = true) => {
+    if (input === undefined) return menu(["新增", undefined], true, hasUI);
+    const parsed = new URL(input.trim());
+    return menu(["新增", parsed.protocol.slice(0, -1), parsed.hostname + (parsed.pathname === "/" ? "" : parsed.pathname), parsed.port || "8890"], true, hasUI);
+  } };
 }
 
 test("command saves project-local config for immediate use and later sessions; environment is ignored", async () => {
@@ -44,9 +50,30 @@ test("command saves project-local config for immediate use and later sessions; e
     assert.equal((await status()).details.requested, "http://project.example:8890/api/status");
     assert.equal((await status()).details.device, false);
     await app.configure(undefined);
-    await assert.rejects(app.configure("http://invalid.example/path"), /origin/);
+    await assert.rejects(app.configure("http://invalid.example/path"), /host|origin/);
     assert.equal(readFileSync(configPath, "utf8"), saved);
     assert.equal((await status()).details.requested, "http://project.example:8890/api/status");
+    const notices: string[] = [];
+    await app.menu(["查看"], true, true, notices);
+    assert.ok(notices[0].includes("http://project.example:8890"));
+    assert.ok(notices[0].includes(configPath));
+    for (const answers of [[undefined], ["新增", undefined], ["新增", "https", undefined], ["新增", "https", "new.example", undefined]]) {
+      await app.menu(answers);
+      assert.equal(readFileSync(configPath, "utf8"), saved);
+    }
+    await app.menu(["新增", "https", "new.example", "9443"], false);
+    assert.equal(readFileSync(configPath, "utf8"), saved);
+    for (const port of ["0", "65536", "1.5", "abc"]) {
+      await assert.rejects(app.menu(["新增", "http", "new.example", port]), /port/i);
+    }
+    for (const host of ["new.example/path", "user@host", "host:8890", ""]) {
+      await assert.rejects(app.menu(["新增", "http", host, "8890"]), /host|origin/i);
+    }
+    await app.menu(["删除"], false);
+    assert.equal(readFileSync(configPath, "utf8"), saved);
+    await app.menu(["新增", "https", "new.example", "9443"]);
+    assert.equal((await status()).details.requested, "https://new.example:9443/api/status");
+    await app.configure("http://project.example:8890");
     const next = load(dir);
     assert.equal((await next.tools.get("phone_status").execute("test", {}, undefined)).details.requested,
       "http://project.example:8890/api/status");
@@ -60,6 +87,10 @@ test("command saves project-local config for immediate use and later sessions; e
     await broken.configure("https://repaired.example:8890");
     assert.equal((await broken.tools.get("phone_status").execute("test", {}, undefined)).details.requested,
       "https://repaired.example:8890/api/status");
+    await broken.menu(["删除"]);
+    await assert.rejects(broken.tools.get("phone_status").execute("test", {}, undefined), /\/esp32-iphone-server/);
+    await broken.menu(["删除"]);
+    await broken.configure("https://repaired.example:8890");
     rmSync(configPath);
     mkdirSync(configPath);
     await assert.rejects(broken.configure("http://unsaved.example:8890"));

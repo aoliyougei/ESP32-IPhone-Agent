@@ -34,13 +34,43 @@ export default function (pi: ExtensionAPI) {
     description: "Configure the iPhone Server address for this project",
     async handler(_args, ctx) {
       if (!ctx.hasUI) throw new Error("Server configuration requires an interactive input dialog");
-      if (acting) throw new Error("Another phone action is in progress");
-      const input = await ctx.ui.input("iPhone Server URL (not Manager)", url || "http://10.0.10.62:8890");
-      if (input === undefined) return;
-      const next = new PhoneClient(input.trim()).origin;
-      if (acting) throw new Error("Another phone action is in progress");
+      const choice = await ctx.ui.select("项目 iPhone Server", ["新增", "查看", "删除"]);
+      if (choice === undefined) return;
       const directory = resolve(ctx.cwd, ".pi");
       const path = resolve(directory, "phone.json");
+      if (choice === "查看") {
+        ctx.ui.notify(`${url || "未配置 Server"}\n配置文件：${path}${configError ? `\n读取错误：${(configError as Error).message}` : ""}`, "info");
+        return;
+      }
+      if (acting) throw new Error("Another phone action is in progress");
+      if (choice === "删除") {
+        if (!await ctx.ui.confirm("删除项目 Server 配置？", "仅删除连接配置，不操作 Server 或手机。")) return;
+        if (acting) throw new Error("Another phone action is in progress");
+        rmSync(path, { force: true });
+        url = undefined;
+        configError = undefined;
+        configPath = path;
+        ctx.ui.notify("项目 Server 配置已删除", "info");
+        return;
+      }
+      if (choice !== "新增") return;
+      const current = url ? new URL(url) : undefined;
+      const protocol = await ctx.ui.select("1/3：协议", ["http", "https"]);
+      if (protocol === undefined) return;
+      if (protocol !== "http" && protocol !== "https") throw new Error("Unsupported protocol");
+      const hostInput = await ctx.ui.input("2/3：IP / 主机名（不含协议或端口）", current?.hostname);
+      if (hostInput === undefined) return;
+      const host = hostInput.trim();
+      if (!host || /[\s/@?#\\]/.test(host) || (host.includes(":") && !/^\[[0-9a-fA-F:]+\]$/.test(host))) {
+        throw new Error("Invalid host: enter an IP or hostname without a path or port");
+      }
+      const portInput = await ctx.ui.input("3/3：端口（1–65535）", current?.port || (current?.protocol === "https:" ? "443" : current ? "80" : "8890"));
+      if (portInput === undefined) return;
+      const port = portInput.trim();
+      if (!/^\d+$/.test(port) || Number(port) < 1 || Number(port) > 65535) throw new Error("Invalid port: expected 1–65535");
+      const next = new PhoneClient(`${protocol}://${host}:${port}`).origin;
+      if ((url || configError) && !await ctx.ui.confirm("覆盖项目 Server 配置？", `新地址：${next}`)) return;
+      if (acting) throw new Error("Another phone action is in progress");
       mkdirSync(directory, { recursive: true });
       const temporary = resolve(directory, `.phone-${randomUUID()}.tmp`);
       try {

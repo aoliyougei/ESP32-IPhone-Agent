@@ -1,0 +1,2 @@
+#define SERVER_HOST "192.0.2.1"
+#define SERVER_PORT 7300

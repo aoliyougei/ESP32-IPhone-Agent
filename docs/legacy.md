@@ -13,11 +13,15 @@ v0.1.0 needed a computer next to the phone:
 Why the change: the computer was the hard part to carry around and set up. Now the phone and a $7 board are the
 whole system.
 
-Use the old version:
+For Wi-Fi TCP HID control with the server on **main**, use the optional `hardware/flash.sh --tcp` build;
+see [firmware setup](../hardware/README.md). It restores the outbound connection and line protocol without
+reverting BLE/AirPlay changes. TCP does not carry screen/video data; the legacy server still uses UxPlay.
+
+To reproduce the entire original version instead:
 
 ```bash
 git clone -b legacy https://github.com/onehumanbeing/esp32-iphone-agent   # or: git checkout v0.1.0
 ```
 
-and follow that README. The legacy firmware and the current one are not interchangeable: flash the one matching the
-branch you use.
+and follow that README. The default main firmware uses BLE and is not compatible with the TCP server;
+main built with `--tcp` is compatible with its HID control protocol.

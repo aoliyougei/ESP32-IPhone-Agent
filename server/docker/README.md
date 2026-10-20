@@ -2,8 +2,9 @@
 
 This image packages the existing `server/`, UxPlay (Debian Trixie package), GStreamer,
 and container-private D-Bus/Avahi. No iPhone app, GPU, USB passthrough, privileged
-container, or host filesystem/socket mount is required. Use **legacy Wi-Fi TCP
-firmware**, not the current BLE firmware.
+container, or host filesystem/socket mount is required. Use **Wi-Fi TCP firmware**:
+main built with `bash hardware/flash.sh --tcp` ([setup](../../hardware/README.md)), or legacy firmware.
+The default BLE-only control build cannot connect to this server.
 
 ## Build and run
 

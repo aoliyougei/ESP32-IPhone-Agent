@@ -31,8 +31,14 @@ jobs:
           arduino-cli lib install "NimBLE-Arduino@2.5.1"
       - name: Build
         run: hardware/flash.sh --build-only
-      - name: Host tests (bplist, GOP buffer)
-        run: make -C hardware/tests
+      - name: Build Wi-Fi TCP compatibility mode
+        run: |
+          cp hardware/hid_bridge/secrets.example.h hardware/hid_bridge/secrets.h
+          hardware/flash.sh --tcp --build-only
+      - name: Host tests (bplist, GOP buffer, TCP transport and flash flags)
+        run: |
+          make -C hardware/tests
+          python3 hardware/tests/test_flash.py
 
   server:  # legacy v0.1.0 architecture, kept working
     runs-on: ubuntu-latest

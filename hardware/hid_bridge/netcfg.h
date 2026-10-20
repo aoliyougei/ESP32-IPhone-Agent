@@ -1,6 +1,6 @@
 // Board settings in NVS and the Wi-Fi link: SoftAP by default (random credentials made once),
 // optional station mode written over BLE. A build with -DSTA_FROM_SECRETS=1 boots in station
-// mode with WIFI_SSID / WIFI_PASS from the git-ignored secrets.h (for testing from a Mac).
+// mode with WIFI_SSID / WIFI_PASS from the git-ignored secrets.h (--sta tests or --tcp control).
 #pragma once
 #include <Arduino.h>
 

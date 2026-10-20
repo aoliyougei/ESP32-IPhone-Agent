@@ -69,6 +69,10 @@ iPhone ──Screen Mirroring (Wi-Fi)──▶ ESP32-S3: AirPlay receiver ──
 
 ### 1. Flash the board (plugged into the Mac)
 
+**Using a server over Wi-Fi TCP without the iPhone app?** main also supports an optional `--tcp` build.
+The board joins your Wi-Fi and connects to the server's device TCP listener (default 7300).
+See [hardware/README.md](hardware/README.md) for configuration and flashing; the default flow below remains BLE + app.
+
 Install [arduino-cli](https://arduino.github.io/arduino-cli/), the ESP32 core 3.3.x and NimBLE-Arduino 2.5.x, then:
 
 ```bash

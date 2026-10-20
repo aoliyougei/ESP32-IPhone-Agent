@@ -21,4 +21,6 @@ hardware/hid_bridge/build/
 # Host test output
 hardware/tests/test
 hardware/tests/test.dSYM/
+hardware/tests/test_tcp
+hardware/tests/test_tcp.dSYM/
 hardware/tools/out/

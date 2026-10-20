@@ -59,6 +59,10 @@ iPhone ──屏幕镜像（Wi-Fi）──▶ ESP32-S3：AirPlay 接收端 ─�
 
 ### 1. 刷板子（插在 Mac 上）
 
+**不安装 iPhone App、使用服务端通过 Wi-Fi TCP 控制？** main 已支持可选的 `--tcp` 固件：
+ESP32 连接你的 Wi-Fi，再主动连接服务端的设备 TCP 端口（默认 7300）。
+配置和烧录步骤见 [hardware/README.md](hardware/README.md)；下面默认流程仍是 BLE + iPhone App。
+
 安装 [arduino-cli](https://arduino.github.io/arduino-cli/)、ESP32 core 3.3.x 和 NimBLE-Arduino 2.5.x，然后：
 
 ```bash

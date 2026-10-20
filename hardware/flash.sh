@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Build and flash the board (needs arduino-cli and the esp32 core 3.3.x).
-# Usage: hardware/flash.sh [port] [--debug] [--sta] [--build-only]
+# Usage: hardware/flash.sh [port] [--debug] [--sta] [--tcp] [--build-only]
 #   --debug       log commands and the AirPlay handshake on USB serial
 #   --sta         test build: join the Wi-Fi in hid_bridge/secrets.h instead of opening a hotspot
+#   --tcp         join secrets.h Wi-Fi and connect to SERVER_HOST:SERVER_PORT (v0.1.0 protocol)
 #   --build-only  compile only (prints flash/RAM usage)
 #   --ap-tune     A/B build: hotspot on a 20 MHz channel with 300 TU beacons (more airtime for BLE)
 # BLE host: h2zero NimBLE-Arduino (arduino-cli lib install "NimBLE-Arduino"); its buffer sizes live in
@@ -19,6 +20,8 @@ for a in "$@"; do
     --debug) DEFS+=" -DDEBUG_SERIAL=1" ;;
     --sta) [[ -f hid_bridge/secrets.h ]] || { echo "--sta needs hid_bridge/secrets.h (see secrets.example.h)"; exit 1; }
            DEFS+=" -DSTA_FROM_SECRETS=1" ;;
+    --tcp) [[ -f hid_bridge/secrets.h ]] || { echo "--tcp needs hid_bridge/secrets.h (see secrets.example.h)"; exit 1; }
+           DEFS+=" -DTCP_CONTROL=1 -DSTA_FROM_SECRETS=1" ;;
     --build-only) BUILD_ONLY=1 ;;
     --ap-tune) DEFS+=" -DAP_TUNE=1" ;;
     *) PORT=$a ;;

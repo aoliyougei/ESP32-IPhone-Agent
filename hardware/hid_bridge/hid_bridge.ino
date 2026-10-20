@@ -16,6 +16,7 @@
 #include "tusb.h"
 #include "ble_link.h"
 #include "netcfg.h"
+#include "tcp_link.h"
 #include "video_link.h"
 #include "src/airplay/airplay.h"
 
@@ -245,13 +246,19 @@ void setup() {
                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM), resetReason());
 }
 
+void releaseInputs() {
+  mouse.release(MOUSE_LEFT);
+  keyboard.releaseAll();
+  consumer.release();
+}
+
 void loop() {
   static bool linked = false;
   esp_task_wdt_reset();
   net_poll();
+  tcp_poll();
   if (linked && !ble_connected()) {
-    mouse.release(MOUSE_LEFT);  // a gesture cut off mid-way must not leave the button held (long press)
-    keyboard.releaseAll();
+    releaseInputs();  // a gesture cut off mid-way must not leave the button held
     video_stream(false);
   }
   linked = ble_connected();

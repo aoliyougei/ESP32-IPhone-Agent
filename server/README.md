@@ -31,5 +31,7 @@ For a Linux amd64 host-network image of this legacy server, including UxPlay and
 GStreamer, see [docker/README.md](docker/README.md). A single-instance Kubernetes
 `hostNetwork` example is included. Real iPhone mirroring still requires a LAN-connected host.
 
-Note: the current firmware speaks BLE, not the TCP protocol this server expects. To run the legacy setup, check out
-`legacy` (or `v0.1.0`) and follow its README.
+The default main firmware speaks BLE. To use this server's TCP HID control with main, build the firmware with
+`bash hardware/flash.sh --tcp`; configure its Wi-Fi and `SERVER_HOST`/`SERVER_PORT` as described in
+[hardware/README.md](../hardware/README.md). The board connects to the server's device listener (default 7300),
+not its HTTP port (8890). No iPhone app is needed; screen input still comes from UxPlay.

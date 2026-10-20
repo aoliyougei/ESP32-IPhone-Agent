@@ -1,35 +1,60 @@
 import { Type } from "@earendil-works/pi-ai";
 import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { PhoneClient } from "./client.mjs";
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync, renameSync, rmSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
-import { parseEnv } from "node:util";
 
 export default function (pi: ExtensionAPI) {
   // Session cwd can differ from process cwd in Web/RPC/SDK hosts.
   let url: string | undefined;
-  let envPath: string | undefined;
+  let configPath: string | undefined;
   let configError: unknown;
+  let acting = false;
+  let stopGeneration = 0;
   pi.on("session_start", (_event, ctx) => {
-    envPath = resolve(ctx.cwd, ".env");
+    configPath = resolve(ctx.cwd, ".pi", "phone.json");
     url = undefined;
     configError = undefined;
     try {
-      url = parseEnv(readFileSync(envPath, "utf8")).PHONE_SERVER_URL;
+      const config = JSON.parse(readFileSync(configPath, "utf8"));
+      if (typeof config?.serverUrl !== "string") throw new Error("serverUrl must be a string");
+      url = new PhoneClient(config.serverUrl).origin;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") configError = error;
     }
-    url = url || process.env.PHONE_SERVER_URL;
   });
   const client = () => {
-    if (configError) throw new Error(`Cannot read phone configuration at ${envPath}: ${(configError as Error).message}`);
-    if (!url) throw new Error(envPath
-      ? `Set PHONE_SERVER_URL in the environment or ${envPath}, then reload the session`
-      : "Phone configuration is not initialized; start or reload the session");
+    if (configError) throw new Error(`Cannot read phone configuration at ${configPath}: ${(configError as Error).message}. Run /esp32-iphone-server to configure it`);
+    if (!url) throw new Error("Run /esp32-iphone-server to configure this project's Server");
     return new PhoneClient(url);
   };
-  let acting = false;
-  let stopGeneration = 0;
+
+  pi.registerCommand("esp32-iphone-server", {
+    description: "Configure the iPhone Server address for this project",
+    async handler(_args, ctx) {
+      if (!ctx.hasUI) throw new Error("Server configuration requires an interactive input dialog");
+      if (acting) throw new Error("Another phone action is in progress");
+      const input = await ctx.ui.input("iPhone Server URL (not Manager)", url || "http://10.0.10.62:8890");
+      if (input === undefined) return;
+      const next = new PhoneClient(input.trim()).origin;
+      if (acting) throw new Error("Another phone action is in progress");
+      const directory = resolve(ctx.cwd, ".pi");
+      const path = resolve(directory, "phone.json");
+      mkdirSync(directory, { recursive: true });
+      const temporary = resolve(directory, `.phone-${randomUUID()}.tmp`);
+      try {
+        writeFileSync(temporary, JSON.stringify({ serverUrl: next }, null, 2) + "\n", { flag: "wx", mode: 0o600 });
+        renameSync(temporary, path);
+      } finally {
+        rmSync(temporary, { force: true });
+      }
+      configPath = path;
+      url = next;
+      configError = undefined;
+      ctx.ui.notify(`Server saved for this project: ${next}`, "info");
+    },
+  });
 
   pi.registerTool(defineTool({
     name: "phone_status",
@@ -62,7 +87,7 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool(defineTool({
     name: "phone_action",
     label: "Phone action",
-    description: "Execute one real iPhone action through ESP32. Requires web UI calibration. Coordinates are 0–1 of the screenshot. Take a screenshot before and after acting. Never run actions in parallel or blindly retry an ambiguous failure. Ask explicit permission before purchases, sending messages, deleting data or changing security settings. stop releases inputs but cannot undo completed actions. By default every action except stop needs interactive approval.",
+    description: "Execute one real iPhone action through ESP32. Requires web UI calibration. Coordinates are 0–1 of the screenshot. Take a screenshot before and after acting. Never run actions in parallel or blindly retry an ambiguous failure. Ask explicit permission before purchases, sending messages, deleting data or changing security settings. stop releases inputs but cannot undo completed actions. Every action except stop needs interactive approval.",
     parameters: Type.Object({
       action: Type.Union(["tap", "swipe", "type", "key", "home", "back", "stop"].map(value => Type.Literal(value))),
       x: Type.Optional(Type.Number({ minimum: 0, maximum: 1 })),
@@ -81,8 +106,8 @@ export default function (pi: ExtensionAPI) {
       const generation = stopGeneration;
       if (!isStop) acting = true;
       try {
-        if (!isStop && process.env.PHONE_ALLOW_ACTIONS !== "1") {
-          if (!ctx.hasUI) throw new Error("Phone actions require interactive approval; PHONE_ALLOW_ACTIONS=1 explicitly enables unattended execution");
+        if (!isStop) {
+          if (!ctx.hasUI) throw new Error("Phone actions require interactive approval");
           const summary = params.text ? `${params.action}: ${params.text.length} characters` : JSON.stringify(params);
           if (!await ctx.ui.confirm("Allow real iPhone operation?", summary)) throw new Error("Phone action denied");
         }

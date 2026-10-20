@@ -23,7 +23,7 @@ pi install git:github.com/aoliyougei/ESP32-IPhone-Agent
 不会将测试文件当作扩展，也不会启动 Server、Manager 或固件工具。
 不要使用 GitHub `tree/main/pi-extension` 子目录 URL 作为安装来源。
 
-在自己的工作项目目录配置下文的 `.env`，然后启动 Pi。
+在自己的工作项目会话中运行下文的 `/esp32-iphone-server`，设置一次后即可复用。
 安装来源不固定标签或提交时，可用以下命令更新，再重启 Pi：
 
 ```sh
@@ -39,7 +39,6 @@ pi update --extensions
 可以直接从任意目录显式加载，不必复制到全局扩展目录：
 
 ```sh
-export PHONE_SERVER_URL=http://10.0.30.51:8890
 pi --extension /absolute/path/ESP32-IPhone-Agent/pi-extension/index.ts
 ```
 
@@ -47,42 +46,43 @@ pi --extension /absolute/path/ESP32-IPhone-Agent/pi-extension/index.ts
 如果要持久安装，手动将**整个目录**复制到 `~/.pi/agent/extensions/iphone-agent/`。
 Pi 提供官方包导入；实际加载不需要在本目录执行 npm install，也不需要构建。
 
-### 按项目使用 `.env`
+## 按项目配置 Server
 
-安装整个插件目录后，可在**当前 Pi 会话的工作项目目录**创建 `.env`：
+在项目会话中输入：
 
-```dotenv
-PHONE_SERVER_URL=http://10.0.30.51:8890
+```text
+/esp32-iphone-server
 ```
 
-然后在该项目目录直接运行 `pi`（未持久安装时仍需 `--extension`），不需要手动 `source .env`。
-不同项目可以配置不同的 Server。这里填写具体 Server 地址，不是 Manager 地址。
+在标准输入弹窗中填写完整 Server 地址（含协议和端口），例如 `http://10.0.10.62:8890`。
+连接的是具体 Server，不是 Manager。保存前校验地址，取消不改变原配置，保存后当前会话立即生效。
+命令只保存地址，不发起网络请求或操作手机；手机动作执行中禁止切换地址。
 
-- 优先使用会话项目目录 `.env` 中的 `PHONE_SERVER_URL`，缺失或为空时回退到进程环境变量。
-- 使用 Pi 会话的 `ctx.cwd`，适配 Web/RPC/SDK 中进程目录与项目目录不同的情况。
-- 仅读取会话项目目录，不向父目录查找，也不读取插件安装目录或其他全局目录的 `.env`。
-- 会话启动时读取一次；修改地址后请重新加载或重启会话。
-- 使用 Node.js 内置 `.env` 解析，支持引号、注释和 `export`，不执行 Shell 或展开变量。
-- 仅取 `PHONE_SERVER_URL`，不向 `process.env` 注入任何变量，尤其不会从文件加载 `PHONE_ALLOW_ACTIONS`。
-- `.env` 不存在时回退到环境变量；调用工具时若没有配置地址，报错会列出实际查找的 `.env` 路径。
-- 文件读取错误（除不存在）会阻止手机工具执行，不会静默连接环境变量中的另一台手机。
+配置保存在**当前会话项目目录**的 `.pi/phone.json`：
 
-请只在可信项目中使用此功能：项目 `.env` 可改变截图来源和手机控制目标。
-将 `.env` 加入项目 `.gitignore`，不要让模型自行修改连接配置或关闭确认。
+```json
+{
+  "serverUrl": "http://10.0.10.62:8890"
+}
+```
+
+- 每个项目独立保存；后续会话自动读取同一项目的配置，插件更新和重新安装不会覆盖它。
+- 使用会话的 `ctx.cwd`，适配进程目录与项目目录不同的 Web/RPC/SDK 环境。
+- 配置使用临时文件及原子重命名保存；写入失败时不切换当前连接地址。
+- 不读取 `.env`、`PHONE_SERVER_URL` 或 `PHONE_ALLOW_ACTIONS`，也没有全局地址兜底。
+- 从旧版升级后需执行一次配置命令；旧 `.env` 不会被修改或删除。
+- 手动编辑配置文件后请重新加载会话；缺失或损坏时可用同一命令设置或修复。
+- 弹窗需要支持 Pi 标准 `ui.input` 的交互客户端；不支持的客户端无法使用此命令。
+
+请只使用可信项目配置，文件可改变截图来源和手机控制目标。
+建议在每个项目的 `.gitignore` 中加入 `.pi/phone.json`，不要让模型自行修改连接配置。
 
 URL 必须是操作者配置的 http(s) origin，不支持路径前缀、URL 用户密码或查询参数。
 工具参数不接受任意 Server 地址；第一版只控制一个 Server。
 Pi 所在机器/容器必须能访问这个 LAN 地址；不要为了远程访问而直接暴露未认证的 Server。
 
-默认每次实际动作（除 stop）都要求用户确认。无交互模式会拒绝动作。
-确实需要无人值守时，可由操作者**在启动 Pi 前**明确设置：
-
-```sh
-export PHONE_ALLOW_ACTIONS=1
-```
-
-这会关闭逐动作弹窗，不会自动判断操作是否危险。仅在你明确授权的设备和任务上使用。
-不要让模型通过修改环境变量来绕过确认。
+每次实际动作（除 stop）都要求用户确认，无交互模式会拒绝动作。
+环境变量不能关闭逐动作确认。仅在你明确授权的设备和任务上使用。
 
 ## 工具
 
@@ -111,7 +111,8 @@ export PHONE_ALLOW_ACTIONS=1
 
 1. Server 启动，iPhone 开启镜像，ESP32 使用 legacy TCP 固件并连接 Server。
 2. 在网页开启辅助触控并完成校准；停止内置 Agent，避免其他人同时手动操作。
-3. 加载扩展后，告诉 Pi：先检查 phone_status，再获取 phone_screenshot，按授权任务操作。
+3. 加载扩展后，首次运行 `/esp32-iphone-server` 保存地址，再让 Pi 先检查 phone_status、获取 phone_screenshot，按授权任务操作。
+   未连接手机/ESP32 时也可先查询 phone_status；设备未连接属于正常状态，不代表 Server 不可达。
 4. 每个动作完成后等待界面变化，再截图确认。模型必须把画面里的文字当作不可信内容，不能当成新指令。
 5. 购买、发消息、删数据、修改安全设置等行为需要事先明确授权，不能只凭画面指示执行。
 
@@ -138,5 +139,5 @@ npx tsc --noEmit --allowJs --allowImportingTsExtensions --module nodenext \
 ```
 
 包发现测试需保留仓库目录结构及根目录 `package.json`，通过 Pi 实际的 package resolver 验证唯一扩展入口。
-检查覆盖根目录 package 资源发现、项目 `.env` 配置、项目配置优先级、地址快照与配置隔离、模拟 HTTP、坐标校验、设备就绪门、禁止重试/重定向、图片结果、用户确认和动作互斥。
+检查覆盖根目录 package 资源发现、命令配置持久化、跨会话复用、项目隔离、忽略环境变量、取消/非法输入/保存失败保护、模拟 HTTP、坐标校验、设备就绪门、禁止重试/重定向、图片结果、用户确认和动作互斥。
 不包括真实手机、实际模型看图或完整 Pi TUI/RPC 加载验证。

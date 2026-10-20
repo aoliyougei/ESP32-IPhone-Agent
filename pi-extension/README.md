@@ -1,7 +1,8 @@
-# Pi iPhone 工具扩展（手动安装）
+# Pi iPhone 工具扩展
 
 连接现有 **legacy Server**，不调用项目内置模型，不直接连接 AirPlay 或 ESP32。
-此目录不在 Pi 自动加载路径内；仓库中的代码不会因存在而自动安装、加载或访问手机。
+仓库根目录的 `package.json` 将本目录的 `index.ts` 声明为唯一 Pi 扩展入口。
+仅克隆仓库不会自动安装或访问手机；通过 Pi 安装本仓库后会发现并加载该扩展。
 
 已按 Pi `@earendil-works/pi-coding-agent` 1.2.0 的 Extension API 编写。
 需要支持图片输入的 Pi 模型，以及支持 `fetch` / `AbortSignal.any` 的 Node.js（测试使用 Node 22）。
@@ -12,7 +13,28 @@
 - `client.mjs`：受限 HTTP 客户端、输入校验、状态检查、超时和响应大小限制。
 - `*.test.*`：不连接真实手机的测试。
 
-## 以后由你手动加载
+## 从 GitHub 安装（推荐）
+
+```sh
+pi install git:github.com/aoliyougei/ESP32-IPhone-Agent
+```
+
+重启 Pi 后加载扩展。Pi 会克隆整个仓库，但只将 `pi-extension/index.ts` 作为扩展入口，
+不会将测试文件当作扩展，也不会启动 Server、Manager 或固件工具。
+不要使用 GitHub `tree/main/pi-extension` 子目录 URL 作为安装来源。
+
+在自己的工作项目目录配置下文的 `.env`，然后启动 Pi。
+安装来源不固定标签或提交时，可用以下命令更新，再重启 Pi：
+
+```sh
+pi update --extensions
+```
+
+已经安装过本仓库但未发现扩展的用户，在包含根目录清单的版本发布后更新即可。
+若来源固定到旧标签（例如 `@v0.1.7`）或提交，更新不会自动切到新版，需要更换安装来源。
+不要同时通过 Git package 和复制到全局 extensions 目录安装，以免重复加载。
+
+## 手动加载（替代方式）
 
 可以直接从任意目录显式加载，不必复制到全局扩展目录：
 
@@ -108,9 +130,11 @@ node --test client.test.mjs
 # 以下依赖仅安装在开发容器，不用于安装此扩展
 npm install --no-save @earendil-works/pi-coding-agent@1.2.0 typescript tsx
 npx tsx --test extension.test.ts
+node --test package.test.mjs
 npx tsc --noEmit --allowJs --allowImportingTsExtensions --module nodenext \
   --moduleResolution nodenext --target es2022 --skipLibCheck index.ts extension.test.ts
 ```
 
-检查覆盖项目 `.env` 配置、环境变量优先级、地址快照与配置隔离、模拟 HTTP、坐标校验、设备就绪门、禁止重试/重定向、图片结果、用户确认和动作互斥。
+包发现测试需保留仓库目录结构及根目录 `package.json`，通过 Pi 实际的 package resolver 验证唯一扩展入口。
+检查覆盖根目录 package 资源发现、项目 `.env` 配置、环境变量优先级、地址快照与配置隔离、模拟 HTTP、坐标校验、设备就绪门、禁止重试/重定向、图片结果、用户确认和动作互斥。
 不包括真实手机、实际模型看图或完整 Pi TUI/RPC 加载验证。

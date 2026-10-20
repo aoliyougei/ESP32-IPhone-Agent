@@ -179,6 +179,10 @@ $("zoom").addEventListener("click", () => $("zoom").close());
 // ---- live phone: click = tap, drag = swipe, wheel = scroll --------------------------
 
 const live = $("live");
+live.addEventListener("load", () => {
+  if (live.naturalWidth && live.naturalHeight)
+    live.parentElement.style.setProperty("--frame-aspect", live.naturalWidth / live.naturalHeight);
+});
 let down = null, calibrating = false;
 function frac(e) {
   const r = live.getBoundingClientRect(), ratio = live.naturalWidth / live.naturalHeight || r.width / r.height;

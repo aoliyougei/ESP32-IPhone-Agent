@@ -140,10 +140,14 @@ body.landscape .phone { grid-area: phone; max-height: 70vh; }
 body.landscape .log { grid-area: log; border-top: 1px solid var(--line); }
 body.landscape .work { grid-area: work; }
 body.landscape .phone .screen {
-  width: min(100%, calc(48vh * 1080 / 498));
+  box-sizing: content-box;
+  width: min(calc(100% - 18px), calc(var(--screen-height, 48vh) * var(--frame-aspect, 2.168675)));
   height: auto;
-  aspect-ratio: 1080 / 498;
+  aspect-ratio: var(--frame-aspect, 2.168675);
+  border-radius: 24px;
 }
+body.landscape .phone:has(.manual[open]) { --screen-height: 28vh; }
+body.landscape .phone:has(.manual[open]) .screen { height: auto; }
 body.landscape .phone .manual { flex-shrink: 0; }
 
 @media (max-width: 1100px) {

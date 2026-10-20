@@ -35,6 +35,23 @@ test('layout switch, persistence, responsive geometry and letterboxed tap coordi
       assert.ok(log.height >= 180);
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     }
+    // The screen content box must match the source, even when manual controls resize it.
+    for (const [w, h] of [[2340, 1080], [1920, 1080], [1080, 2340]]) {
+      await page.evaluate(([w, h]) => {
+        const image = document.getElementById('live');
+        Object.defineProperty(image, 'naturalWidth', { value: w, configurable: true });
+        Object.defineProperty(image, 'naturalHeight', { value: h, configurable: true });
+        image.dispatchEvent(new Event('load'));
+      }, [w, h]);
+      for (const open of [true, false]) {
+        await page.locator('.manual').evaluate((element, open) => { element.open = open; }, open);
+        const dimensions = await page.locator('#live').boundingBox();
+        assert.ok(Math.abs(dimensions.width / dimensions.height - w / h) < 0.01,
+          `source ${w}x${h}, manual=${open}: no artificial letterboxing`);
+        const screen = await box('.screen'), phone = await box('.phone');
+        assert.ok(screen.x >= phone.x && screen.x + screen.width <= phone.x + phone.width + 1);
+      }
+    }
     await page.reload();
     assert.equal(await page.locator('#layout').getAttribute('aria-pressed'), 'true');
     await page.locator('[data-lang="zh"]').click();

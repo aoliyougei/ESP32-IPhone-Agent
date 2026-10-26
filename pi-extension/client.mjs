@@ -58,7 +58,8 @@ export class PhoneClient {
     };
     let path, body = {};
     switch (args.action) {
-      case 'tap': body = { x: coordinate('x'), y: coordinate('y') }; break;
+      case 'tap':
+      case 'double_tap': body = { x: coordinate('x'), y: coordinate('y') }; break;
       case 'swipe': body = { x1: coordinate('x1'), y1: coordinate('y1'), x2: coordinate('x2'), y2: coordinate('y2') }; break;
       case 'type':
       case 'key':

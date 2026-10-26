@@ -29,8 +29,11 @@ test('returns status and JPEG image bytes', () => server(async client => {
 test('routes normalized actions and rejects invalid arguments before any request', () => server(async (client, requests) => {
   await client.action({ action: 'tap', x: 0.25, y: 0.75 });
   assert.deepEqual(requests.at(-1), { path: '/api/tap', body: { x: 0.25, y: 0.75 } });
+  await client.action({ action: 'double_tap', x: 0.25, y: 0.75 });
+  assert.deepEqual(requests.at(-1), { path: '/api/double_tap', body: { x: 0.25, y: 0.75 } });
   const count = requests.length;
   for (const args of [{ action: 'tap', x: 500, y: 0 }, { action: 'tap', x: NaN, y: 0 },
+    { action: 'double_tap', x: -0.1, y: 0.5 }, { action: 'double_tap', x: 0.5 },
     { action: 'swipe', x1: 0, y1: 0, x2: 1 }, { action: 'raw' }, { action: 'type', text: '中文' }]) {
     await assert.rejects(client.action(args));
   }
@@ -43,8 +46,9 @@ test('blocks disconnected, uncalibrated or internally controlled phones; stop is
     { device: true, screen: true, calibrated: true, agent: { running: true } }]) {
     state(value);
     await assert.rejects(client.action({ action: 'tap', x: 0.5, y: 0.5 }));
+    await assert.rejects(client.action({ action: 'double_tap', x: 0.5, y: 0.5 }));
   }
-  assert.equal(requests.some(r => r.path === '/api/tap'), false);
+  assert.equal(requests.some(r => r.path === '/api/tap' || r.path === '/api/double_tap'), false);
   await client.action({ action: 'stop' });
   assert.equal(requests.at(-1).path, '/api/agent/stop');
 }));

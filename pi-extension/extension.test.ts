@@ -125,8 +125,10 @@ test("actions execute without approval, preserve serialization and block server 
     };
     const act = (args: any, ctx: any) => tools.get("phone_action").execute("test", args, undefined, undefined, ctx);
     const noConfirmation = { hasUI: true, ui: { confirm() { throw new Error("Unexpected confirmation"); } } };
-    await act({ action: "back" }, noConfirmation);
-    assert.ok(calls.includes("/api/back"));
+    assert.ok(tools.get("phone_action").parameters.properties.action.anyOf.some((item: any) => item.const === "double_tap"));
+    await act({ action: "double_tap", x: 0.25, y: 0.75 }, noConfirmation);
+    assert.equal(calls.filter(path => path === "/api/double_tap").length, 1);
+    assert.equal(calls.includes("/api/tap"), false);
     const image = await tools.get("phone_screenshot").execute("test", {}, undefined);
     assert.equal(image.content[1].type, "image");
     assert.equal(image.content[1].data, "/9j/2Q==");

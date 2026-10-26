@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hidagent"
-version = "0.1.18"
+version = "0.1.19"
 description = "Let an AI model use a real iPhone through an ESP32 USB HID bridge and AirPlay mirroring"
 requires-python = ">=3.10"
 license = "MIT"

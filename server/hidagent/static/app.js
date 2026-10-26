@@ -295,7 +295,7 @@ function calibrationHint(key) {
 const axisHint = step => ({ x150: "calAxisX150", x350: "calAxisX350",
   y150: "calAxisY150", y350: "calAxisY350" })[step];
 function setCalibrationBusy(busy) {
-  for (const id of ["cal", "cal-manual", "cal-axis", "cal-cancel"]) $(id).disabled = busy;
+  for (const id of ["cal", "cal-manual", "cal-cancel"]) $(id).disabled = busy;
   live.style.pointerEvents = busy ? "none" : "";
 }
 async function startCalibration(manual, mode = "default") {
@@ -312,8 +312,7 @@ async function startCalibration(manual, mode = "default") {
   finally { setCalibrationBusy(false); $("cal-cancel").hidden = !calibrating; }
 }
 $("cal").addEventListener("click", () => startCalibration(false));
-$("cal-manual").addEventListener("click", () => startCalibration(true));
-$("cal-axis").addEventListener("click", () => startCalibration(false, "axis"));
+$("cal-manual").addEventListener("click", () => startCalibration(false, "axis"));
 $("cal-cancel").addEventListener("click", async () => {
   setCalibrationBusy(true);
   try {

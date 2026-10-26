@@ -1,7 +1,7 @@
 // UI strings and plain-language step descriptions, in English and Simplified Chinese.
 const I18N = {
   en: {
-    calibrateManual: "Manual calibration", calibrateAxis: "Axis calibration", calCancel: "Cancel calibration",
+    calibrateManual: "Manual calibration", calCancel: "Cancel calibration",
     calAxisX150: "Step 1/4: X moved 150 units. Click the real pointer center; do not click a target grid point.",
     calAxisX350: "Step 2/4: X moved 350 units total. Click the real pointer center.",
     calAxisY150: "Step 3/4: Re-homed, Y moved 150 units. Click the real pointer center.",
@@ -27,7 +27,7 @@ const I18N = {
       "Open Settings and go to Wi-Fi", "Open Notes and write \"hello\""],
   },
   zh: {
-    calibrateManual: "手动校准", calibrateAxis: "分轴校准", calCancel: "取消校准",
+    calibrateManual: "手动校准", calCancel: "取消校准",
     calAxisX150: "第 1/4 步：X 轴已移动 150 单位。请点击真实指针中心，不是网格目标点。",
     calAxisX350: "第 2/4 步：X 轴累计移动 350 单位。请点击真实指针中心。",
     calAxisY150: "第 3/4 步：已重新归位，Y 轴移动 150 单位。请点击真实指针中心。",

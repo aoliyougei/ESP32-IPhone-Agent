@@ -89,19 +89,13 @@ test('grid follows image bounds and hover coordinates equal tap API coordinates'
     await page.locator('.manual').evaluate(element => { element.open = true; });
     await page.locator('#cal-manual').click();
     await page.waitForFunction(() => calibrating);
-    assert.deepEqual(calibration.at(-1), { path: '/api/calibrate/start', body: { manual: true, mode: 'default' } });
+    assert.deepEqual(calibration.at(-1), { path: '/api/calibrate/start', body: { manual: false, mode: 'axis' } });
+    assert.equal(await page.locator('#cal-axis').count(), 0);
+    assert.match(await page.locator('#cal-manual').textContent(), /手动校准/);
     const frame = await page.locator('#live').boundingBox();
-    await Promise.all([
-      page.waitForResponse(response => response.url().endsWith('/api/calibrate/finish')),
-      page.mouse.click(frame.x + frame.width / 2, frame.y + frame.height / 2)
-    ]);
-    assert.equal(calibration.at(-1).path, '/api/calibrate/finish');
-    assert.ok(Math.abs(calibration.at(-1).body.x - 0.5) < 0.003);
-    await page.locator('#cal-axis').click();
-    await page.waitForFunction(() => calibrating);
-    assert.deepEqual(calibration.at(-1).body, { manual: false, mode: 'axis' });
     for (let i = 0; i < 4; i++) {
       await page.waitForFunction(() => document.getElementById('live').style.pointerEvents !== 'none');
+      assert.match(await page.locator('#caption').textContent(), new RegExp(`第 ${i + 1}/4 步`));
       await Promise.all([
         page.waitForResponse(response => response.url().endsWith('/api/calibrate/finish')),
         page.mouse.click(frame.x + frame.width / 2, frame.y + frame.height / 2)
@@ -109,11 +103,11 @@ test('grid follows image bounds and hover coordinates equal tap API coordinates'
     }
     await page.waitForFunction(() => !calibrating);
     assert.equal(await page.locator('#cal-cancel').isVisible(), false);
-    await page.locator('#cal-axis').click();
+    await page.locator('#cal-manual').click();
     await page.waitForFunction(() => calibrating);
     await page.locator('#cal-cancel').click();
     await page.waitForFunction(() => !calibrating);
-    await page.locator('#cal-axis').click();
+    await page.locator('#cal-manual').click();
     await page.waitForFunction(() => calibrating);
     await page.locator('#estop').click();
     await page.waitForFunction(() => !calibrating, null, { timeout: 2000 });

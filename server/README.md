@@ -37,22 +37,25 @@ node --test --test-concurrency=1 tests/layout.browser.cjs tests/grid.browser.cjs
 
 ## Comparing automatic and manual calibration
 
-The existing **Calibrate / 校准** button first attempts automatic two-point calibration.
-Use **Manual calibration / 手动校准** to skip detection: the pointer is homed and
-moved exactly 200 mouse units along each axis, then click its center in the preview.
-This completion replaces the saved span and clears learned `seen` samples.
-Back up `/data/calibration.json` before comparing results. Keep orientation and iOS
-pointer settings unchanged, pause other controllers, and repeat the same API targets.
-Manual calibration is a diagnostic alternative, not a guarantee of full-screen accuracy.
+The existing **Calibrate / 校准** button still attempts automatic two-point diagonal
+calibration. **Manual calibration / 手动校准** now runs the four-step axis procedure
+below; there is no separate Axis calibration button. It skips visual detection and
+fits both per-axis span and offset from four user-selected pointer centers.
+Back up `/data/calibration.json` first. Keep orientation and iOS pointer settings
+unchanged and pause other controllers. This UI change does not enable X-then-Y
+positioning: retain `HIDAGENT_AXIS_MOVE=1` to use the combination validated on the
+tested device. Calibration is not a guarantee of full-screen accuracy.
 
-`POST /api/calibrate/start` accepts optional `{"manual":true}`; an empty body or
-`{"manual":false}` keeps automatic behavior. Failed automatic calibration always
+For existing API clients, `POST /api/calibrate/start` with `{"manual":true}` still
+uses the legacy single-point diagonal procedure (200/200, one finish request),
+which clears old `seen` samples. The new manual UI instead sends `{"mode":"axis"}`.
+An empty body or `{"manual":false}` keeps automatic behavior. Failed automatic calibration always
 re-homes and moves 200 units before asking for a manual point, even if the first
 automatic point was detected. Manager's existing proxy supports this request unchanged.
 
-### Diagnostic axis calibration
+### Four-step manual calibration
 
-Back up the calibration file first. Choose **Axis calibration / 分轴校准** and wait
+Back up the calibration file first. Choose **Manual calibration / 手动校准** and wait
 for the real pointer to settle after each move (including AirPlay latency). Click
 its center four times as prompted: X=150 units, X=350 units total, then re-home,
 Y=150 units, Y=350 units total. These are mouse units, **not target grid coordinates**.

@@ -9,6 +9,12 @@
 - Product name: ESP32 Agent.
 - `server/` is legacy and no longer needed.
 
+## v0.1.19
+
+- Legacy Server: use the existing four-step axis procedure for the Manual calibration button; remove the separate Axis calibration button.
+- Keep automatic calibration and the legacy single-point manual API unchanged; X-then-Y positioning remains opt-in.
+- Update calibration documentation and browser coverage; synchronize package versions. Manager has no functional changes.
+
 ## v0.1.18
 
 - Legacy Server: fix automatic-to-manual calibration fallback; add forced manual and four-step axis calibration.

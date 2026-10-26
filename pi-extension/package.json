@@ -1,6 +1,6 @@
 {
   "name": "pi-iphone-agent",
-  "version": "0.1.13",
+  "version": "0.1.16",
   "private": true,
   "type": "module",
   "description": "Manually loaded Pi tools for the legacy ESP32 iPhone Server"

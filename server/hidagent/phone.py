@@ -179,6 +179,14 @@ class Phone:
         await self.device.send("click")
         await asyncio.sleep(TAP_GAP)
 
+    async def double_tap(self, x: float, y: float) -> None:
+        """Move once so re-homing cannot interrupt the two clicks."""
+        await self.point(x, y)
+        await self.device.send("click")
+        await asyncio.sleep(TAP_GAP)
+        await self.device.send("click")
+        await asyncio.sleep(TAP_GAP)
+
     async def swipe(self, x1: float, y1: float, x2: float, y2: float, hold: bool = True) -> None:
         await self.drag([(x1, y1), (x2, y2)], hold)
 

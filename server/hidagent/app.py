@@ -112,6 +112,11 @@ async def tap(p: Point):
     return await act(phone.tap(p.x, p.y))
 
 
+@app.post("/api/double_tap")
+async def double_tap(p: Point):
+    return await act(phone.double_tap(p.x, p.y))
+
+
 @app.post("/api/swipe")
 async def swipe(s: Swipe):
     return await act(phone.swipe(s.x1, s.y1, s.x2, s.y2))

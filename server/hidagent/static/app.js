@@ -21,6 +21,7 @@ function applyLang() {
   shown = "";  // re-render steps in the new language
   if (typeof applyMotion === "function") applyMotion();
   if (typeof applyLayout === "function") applyLayout();
+  $("grid-coordinates").title = t("gridHint");
 }
 document.querySelectorAll("#lang button").forEach((b) => b.addEventListener("click", () => {
   lang = b.dataset.lang;
@@ -182,19 +183,57 @@ const live = $("live");
 live.addEventListener("load", () => {
   if (live.naturalWidth && live.naturalHeight)
     live.parentElement.style.setProperty("--frame-aspect", live.naturalWidth / live.naturalHeight);
+  updateGrid();
 });
 let down = null, calibrating = false;
-function frac(e) {
+function imageBounds() {
   const r = live.getBoundingClientRect(), ratio = live.naturalWidth / live.naturalHeight || r.width / r.height;
-  const w = Math.min(r.width, r.height * ratio), h = w / ratio;  // object-fit: contain box
-  const x = (e.clientX - r.left - (r.width - w) / 2) / w, y = (e.clientY - r.top - (r.height - h) / 2) / h;
-  return { x: Math.min(Math.max(x, 0), 1), y: Math.min(Math.max(y, 0), 1) };
+  const width = Math.min(r.width, r.height * ratio), height = width / ratio;
+  return { left: r.left + (r.width - width) / 2, top: r.top + (r.height - height) / 2, width, height };
 }
+function frac(e) {
+  const r = imageBounds();
+  if (!live.hasAttribute("src") || !live.naturalWidth || !r.width || !r.height) return null;
+  const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+  return x < 0 || x > 1 || y < 0 || y > 1 ? null : { x, y };
+}
+const grid = $("coordinate-grid"), crosshair = $("grid-crosshair");
+function clearCoordinates() {
+  crosshair.hidden = true;
+  $("grid-coordinates").textContent = "X: —  Y: —";
+}
+function updateGrid() {
+  grid.hidden = $("grid-toggle").getAttribute("aria-pressed") !== "true" || !live.hasAttribute("src");
+  if (grid.hidden) { clearCoordinates(); return; }
+  const r = imageBounds(), parent = live.parentElement.getBoundingClientRect();
+  Object.assign(grid.style, { left: `${r.left - parent.left - live.parentElement.clientLeft}px`,
+    top: `${r.top - parent.top - live.parentElement.clientTop}px`, width: `${r.width}px`, height: `${r.height}px` });
+}
+for (let i = 1; i < 10; i++) for (const axis of ["x", "y"]) {
+  const tick = document.createElement("span"); tick.className = "grid-tick " + axis;
+  tick.textContent = (i / 10).toFixed(1); tick.style[axis === "x" ? "left" : "top"] = `${i * 10}%`;
+  grid.append(tick);
+}
+$("grid-toggle").addEventListener("click", () => {
+  $("grid-toggle").setAttribute("aria-pressed", String($("grid-toggle").getAttribute("aria-pressed") !== "true"));
+  updateGrid();
+});
+new ResizeObserver(() => { clearCoordinates(); updateGrid(); }).observe(live);
+live.addEventListener("pointermove", e => {
+  const point = frac(e);
+  if (grid.hidden || !point) { clearCoordinates(); return; }
+  crosshair.hidden = false;
+  crosshair.style.setProperty("--hover-x", `${point.x * 100}%`);
+  crosshair.style.setProperty("--hover-y", `${point.y * 100}%`);
+  $("grid-coordinates").textContent = `X: ${point.x.toFixed(3)}  Y: ${point.y.toFixed(3)}`;
+});
+live.addEventListener("pointerleave", clearCoordinates);
+live.addEventListener("pointercancel", () => { down = null; clearCoordinates(); });
 live.addEventListener("pointerdown", (e) => { down = frac(e); });
 live.addEventListener("pointerup", async (e) => {
-  if (!down) return;
   const up = frac(e), from = down;
   down = null;
+  if (!from || !up) return;
   if (calibrating) {
     calibrating = false;
     const ok = await post("/api/calibrate/finish", up);
@@ -209,8 +248,10 @@ let wheelAt = 0;
 live.addEventListener("wheel", (e) => {
   e.preventDefault();
   if (Date.now() - wheelAt < 250) return;
+  const point = frac(e);
+  if (!point) return;
   wheelAt = Date.now();
-  post("/api/scroll", { ...frac(e), lines: e.deltaY > 0 ? -3 : 3 });
+  post("/api/scroll", { ...point, lines: e.deltaY > 0 ? -3 : 3 });
 }, { passive: false });
 
 // Show a frame, or nothing when the phone is gone, so a stale screenshot never lingers.
@@ -219,6 +260,7 @@ function showFrame(url) {
   if (url) live.src = url; else live.removeAttribute("src");
   if (old.startsWith("blob:")) URL.revokeObjectURL(old);
   $("hint").hidden = Boolean(url);
+  updateGrid();
 }
 
 // Keep fetching the latest frame (works in every browser, unlike MJPEG).

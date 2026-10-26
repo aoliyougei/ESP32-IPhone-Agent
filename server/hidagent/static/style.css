@@ -29,6 +29,19 @@ main { display: grid; grid-template-columns: auto minmax(300px, 1fr) minmax(420p
 .screen { position: relative; height: calc(100vh - 165px); aspect-ratio: 498 / 1080; flex: none;
           background: var(--soft); border: 9px solid var(--fg); border-radius: 42px; overflow: hidden; touch-action: none; }
 .screen img { width: 100%; height: 100%; object-fit: contain; display: block; cursor: crosshair; user-select: none; -webkit-user-drag: none; }
+.coordinate-controls { display:flex; align-items:center; flex-wrap:wrap; justify-content:center; gap:10px; flex-shrink:0; }
+#grid-toggle[aria-pressed="true"] { background:var(--fg); color:var(--bg); }
+#grid-coordinates { font:12px ui-monospace,monospace; min-width:160px; color:var(--muted); }
+#coordinate-grid { position:absolute; pointer-events:none; border:1px solid #ffd400b0;
+  background-image:linear-gradient(to right,#ffd40080 1px,transparent 1px),linear-gradient(to bottom,#ffd40080 1px,transparent 1px);
+  background-size:10% 10%; }
+.grid-tick { position:absolute; color:#fff; background:#000a; font:10px/1.2 ui-monospace,monospace; padding:1px; }
+.grid-tick.x { top:0; transform:translateX(-50%); }
+.grid-tick.y { left:0; transform:translateY(-50%); }
+#grid-crosshair { position:absolute; inset:0; }
+#grid-crosshair::before, #grid-crosshair::after { content:""; position:absolute; background:#ff453a; }
+#grid-crosshair::before { left:var(--hover-x); top:0; width:1px; height:100%; }
+#grid-crosshair::after { top:var(--hover-y); left:0; height:1px; width:100%; }
 .hint { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; color: var(--muted); pointer-events: none; }
 .caption { color: var(--muted); font-size: 12px; margin: 0; }
 .caption.callout { color: #000; background: var(--hl); font-size: 14px; font-weight: 600; padding: 6px 12px; border-radius: 8px; }

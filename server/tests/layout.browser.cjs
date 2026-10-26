@@ -62,6 +62,7 @@ test('layout switch, persistence, responsive geometry and letterboxed tap coordi
         const image = document.getElementById('live');
         Object.defineProperty(image, 'naturalWidth', { value: w, configurable: true });
         Object.defineProperty(image, 'naturalHeight', { value: h, configurable: true });
+        image.setAttribute('src', 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7');
         const r = image.getBoundingClientRect();
         return frac({ clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 });
       }, [w, h]);

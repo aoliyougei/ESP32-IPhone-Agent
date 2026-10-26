@@ -9,6 +9,14 @@
 - Product name: ESP32 Agent.
 - `server/` is legacy and no longer needed.
 
+## v0.1.18
+
+- Legacy Server: fix automatic-to-manual calibration fallback; add forced manual and four-step axis calibration.
+- Add opt-in X-then-Y positioning (`HIDAGENT_AXIS_MOVE=1`); combined movement remains the default.
+- Protect calibration saves with temporary-file replacement; clear sampling state on stop, including disconnects.
+- Add pointer diagnostics, regression coverage and documented device-test results and limitations.
+- Synchronize Server, Manager and Pi package metadata; Manager has no functional changes in this release.
+
 ## v0.1.0
 
 - Computer-side version: UxPlay + Python server + web UI; the ESP32 is a USB HID bridge over Wi-Fi.

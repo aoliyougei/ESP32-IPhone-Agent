@@ -4,6 +4,7 @@ import asyncio
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import FileResponse
@@ -23,7 +24,8 @@ DEBUG = os.environ.get("HIDAGENT_DEBUG") == "1"
 
 device = Device()
 screen = Screen(os.environ.get("AIRPLAY_NAME", "iPhone Agent"))
-phone = Phone(device, DATA_DIR / "calibration.json", screen)
+phone = Phone(device, DATA_DIR / "calibration.json", screen,
+              axis_move=os.environ.get("HIDAGENT_AXIS_MOVE", "0") == "1")
 agent = Agent(phone, screen, LLM.from_env("ACTOR"), LLM.from_env("PLANNER"),
               Trace(DATA_DIR / "traces" if DEBUG else None))
 
@@ -89,6 +91,7 @@ def index():
 def status():
     return {"device": device.connected, "screen": screen.live, "calibrated": phone.calibrated,
             "debug": DEBUG, "trace": str(agent.trace.dir or ""), "aspect": round(screen.aspect, 4),
+            "pointer_mode": "axis" if phone.axis_move else "combined",
             "models": {"planner": agent.planner.model, "actor": agent.actor.model},
             "agent": {"running": agent.running, "task": agent.task, "steps": agent.steps}}
 
@@ -155,19 +158,36 @@ async def raw(t: Text):
     return await act(device.send(t.text))
 
 
+class CalibrationStart(BaseModel):
+    manual: bool = False
+    mode: Literal["default", "axis"] = "default"
+
+
 @app.post("/api/calibrate/start")
-async def calibrate_start():
+async def calibrate_start(options: CalibrationStart | None = None):
     """Calibrate the pointer. {"auto": true}: done by itself; otherwise the user clicks the pointer next."""
     try:
-        return {"ok": True, "auto": await phone.start_calibration(), "span": phone.span}
+        if options and options.mode == "axis":
+            step = await phone.start_axis_calibration()
+            return {"ok": True, "auto": False, "step": step, "span": phone.span}
+        auto = await phone.start_calibration(manual=options.manual if options else False)
+        return {"ok": True, "auto": auto, "span": phone.span}
     except (DeviceError, RuntimeError) as e:
         raise HTTPException(409, str(e)) from e
 
 
 @app.post("/api/calibrate/finish")
-def calibrate_finish(p: Point):
-    phone.finish_calibration(p.x, p.y)
-    return {"ok": True, "span": phone.span}
+async def calibrate_finish(p: Point):
+    try:
+        if phone._axis_samples is not None:
+            step = await phone.finish_axis_calibration(p.x, p.y)
+            return {"ok": True, "step": step, "span": phone.span}
+        phone.finish_calibration(p.x, p.y)
+        return {"ok": True, "span": phone.span}
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
+    except (DeviceError, RuntimeError) as e:
+        raise HTTPException(409, str(e)) from e
 
 
 @app.post("/api/agent")
@@ -184,7 +204,7 @@ async def agent_stop():
     """Emergency stop: cancel the agent and release the mouse button."""
     agent.stop()
     await asyncio.sleep(0.1)  # let a gesture in flight finish its own release
-    return await act(phone.reset()) if device.connected else {"ok": True}
+    return await act(phone.reset())
 
 
 @app.post("/api/agent/clear")

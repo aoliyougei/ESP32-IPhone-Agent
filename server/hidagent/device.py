@@ -75,7 +75,11 @@ class Device:
         self._beat = time.time()  # last reply of any kind
         if command != "ping":
             self._last = self._beat  # last real command: the phone's idle time
-            log.debug("%s -> %s (%.0f ms)", command, reply, (time.time() - started) * 1000)
+            if command.partition(" ")[0] in {"home", "move", "release", "click"}:
+                log.info("HID %s -> %s (%.0f ms)", command, reply, (time.time() - started) * 1000)
+            else:
+                log.debug("%s -> %s (%.0f ms)", command.partition(" ")[0], reply,
+                          (time.time() - started) * 1000)
         if reply != "ok":
             raise DeviceError(reply or "board disconnected")
 

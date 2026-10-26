@@ -65,6 +65,11 @@ async function post(path, body) {
   const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
   const data = await r.json().catch(() => ({}));
   $("msg").textContent = r.ok ? "" : data.detail || r.statusText;
+  if (r.ok && path === "/api/agent/stop") {
+    calibrating = false;
+    calibrationHint(null);
+    $("cal-cancel").hidden = true;
+  }
   return r.ok ? data : null;
 }
 
@@ -236,8 +241,13 @@ live.addEventListener("pointerup", async (e) => {
   if (!from || !up) return;
   if (calibrating) {
     calibrating = false;
-    const ok = await post("/api/calibrate/finish", up);
-    calibrationHint(ok ? "calOk" : null);
+    setCalibrationBusy(true);
+    try {
+      const result = await post("/api/calibrate/finish", up);
+      calibrating = !result || Boolean(result.step);
+      calibrationHint(result ? (result.step ? axisHint(result.step) : "calOk") : "calNow");
+    } catch { calibrating = true; calibrationHint("calNow"); }
+    finally { setCalibrationBusy(false); $("cal-cancel").hidden = !calibrating; }
   } else if (Math.hypot(up.x - from.x, up.y - from.y) < 0.02) {
     post("/api/tap", up);
   } else {
@@ -282,13 +292,33 @@ function calibrationHint(key) {
   live.parentElement.classList.toggle("calibrating", key === "calNow");
   if (key === "calOk") setTimeout(() => calibrationHint(null), 4000);
 }
-$("cal").addEventListener("click", async () => {
+const axisHint = step => ({ x150: "calAxisX150", x350: "calAxisX350",
+  y150: "calAxisY150", y350: "calAxisY350" })[step];
+function setCalibrationBusy(busy) {
+  for (const id of ["cal", "cal-manual", "cal-axis", "cal-cancel"]) $(id).disabled = busy;
+  live.style.pointerEvents = busy ? "none" : "";
+}
+async function startCalibration(manual, mode = "default") {
+  calibrating = false;
+  setCalibrationBusy(true);
   calibrationHint("calFinding");
-  const r = await post("/api/calibrate/start");
-  if (!r) return calibrationHint(null);
-  if (r.auto) return calibrationHint("calOk");  // found the pointer by itself
-  calibrating = true;
-  calibrationHint("calNow");
+  try {
+    const r = await post("/api/calibrate/start", { manual, mode });
+    if (!r) return calibrationHint(null);
+    if (r.auto) return calibrationHint("calOk");
+    calibrating = true;
+    calibrationHint(r.step ? axisHint(r.step) : "calNow");
+  } catch { calibrationHint(null); }
+  finally { setCalibrationBusy(false); $("cal-cancel").hidden = !calibrating; }
+}
+$("cal").addEventListener("click", () => startCalibration(false));
+$("cal-manual").addEventListener("click", () => startCalibration(true));
+$("cal-axis").addEventListener("click", () => startCalibration(false, "axis"));
+$("cal-cancel").addEventListener("click", async () => {
+  setCalibrationBusy(true);
+  try {
+    if (await post("/api/agent/stop")) { calibrating = false; calibrationHint(null); }
+  } finally { setCalibrationBusy(false); $("cal-cancel").hidden = !calibrating; }
 });
 $("type").addEventListener("click", async () => { if (await post("/api/type", { text: $("text").value })) $("text").value = ""; });
 $("press").addEventListener("click", () => post("/api/key", { text: $("key").value }));

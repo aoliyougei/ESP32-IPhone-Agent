@@ -29,11 +29,13 @@ MAX_MISS = 0.06         # bigger misses are still corrected, but not learned fro
 
 
 class Phone:
-    def __init__(self, device: Device, calibration_file: Path, screen=None):
+    def __init__(self, device: Device, calibration_file: Path, screen=None, *, axis_move: bool = False):
         self.device, self._file, self.screen = device, calibration_file, screen
+        self.axis_move = axis_move
         # mouse units needed to cross the full screen width / height
         saved = json.loads(calibration_file.read_text()) if calibration_file.exists() else None
         self.span = {"w": saved["w"], "h": saved["h"]} if saved else None
+        self._axis_samples = None
         self._pos = None  # pointer position in mouse units; None = unknown
         self._moves = 0
         self._link = 0  # device.links when the pointer was last homed
@@ -46,15 +48,19 @@ class Phone:
     def calibrated(self) -> bool:
         return self.span is not None
 
-    async def start_calibration(self) -> bool:
+    async def start_calibration(self, manual: bool = False) -> bool:
         """Find the pointer on screen at two known distances from the corner and fit the mapping from both.
 
         Two points give the scale and the offset, which one point cannot (iOS pointer motion is not exactly
         proportional). Returns True when it calibrated itself; otherwise the user clicks the pointer
         (finish_calibration).
         """
+        self._axis_samples = None
         self._pos = None
         await self.device.send("home")
+        if manual:
+            await self.device.send(f"move {CALIBRATION_MOVE} {CALIBRATION_MOVE}")
+            return False
         seen = []
         for units in CALIBRATION_STOPS:
             step = units - (seen[-1][0] if seen else 0)
@@ -65,9 +71,9 @@ class Phone:
             seen.append((units, *found))
         if len(seen) < 2:
             log.info("calibration: pointer not found on screen, waiting for a click")
-            if not seen:
-                await self.device.send("home")
-                await self.device.send(f"move {CALIBRATION_MOVE} {CALIBRATION_MOVE}")
+            # Always reset: a partial automatic attempt may already have moved 350 units.
+            await self.device.send("home")
+            await self.device.send(f"move {CALIBRATION_MOVE} {CALIBRATION_MOVE}")
             return False
         (u1, x1, y1), (u2, x2, y2) = seen
         self.span = {"w": round((u2 - u1) / (x2 - x1)), "h": round((u2 - u1) / (y2 - y1))}
@@ -79,6 +85,60 @@ class Phone:
         self._save()
         log.info("calibration: pointer at %s, span %s", [(round(x, 3), round(y, 3)) for _, x, y in seen], self.span)
         return True
+
+    async def start_axis_calibration(self) -> str:
+        self._pos = None
+        self._axis_samples = []
+        try:
+            await self.device.send("home")
+            await self.device.send("move 150 0")
+        except Exception:
+            self._axis_samples = None
+            raise
+        log.info("axis calibration: x150; select the real pointer center")
+        return "x150"
+
+    async def finish_axis_calibration(self, x: float, y: float) -> str | None:
+        samples = self._axis_samples
+        if samples is None:
+            raise RuntimeError("no axis calibration in progress")
+        index = len(samples)
+        value = x if index < 2 else y
+        if not 0.01 < value < 0.98 or (index % 2 and value - samples[-1] < 0.03):
+            raise ValueError("Select the pointer away from the boundary and beyond the first point")
+        log.info("axis calibration sample %s: x=%.6f y=%.6f", index, x, y)
+        if index == 3:
+            values = samples + [value]
+            span = {"w": round(200 / (values[1] - values[0])),
+                    "h": round(200 / (values[3] - values[2]))}
+            previous = self.span, self._seen
+            self.span = span
+            self._seen = {axis: deque([(units / span[key], measured) for units, measured in
+                                      zip(CALIBRATION_STOPS, values[offset:offset + 2], strict=True)], maxlen=12)
+                          for axis, key, offset in (("x", "w", 0), ("y", "h", 2))}
+            try:
+                self._save()
+            except Exception:
+                self.span, self._seen = previous
+                raise
+            self._axis_samples = None
+            self._pos = None
+            log.info("axis calibration complete: span=%s seen=%s", self.span, dict(self._seen))
+            return None
+        try:
+            if index == 0:
+                await self.device.send("move 200 0")
+            elif index == 1:
+                await self.device.send("home")
+                await self.device.send("move 0 150")
+            else:
+                await self.device.send("move 0 200")
+        except Exception:
+            self._axis_samples = None
+            self._pos = None
+            raise
+        samples.append(value)
+        return ("x350", "y150", "y350")[index]
 
     async def _find_pointer(self) -> tuple[float, float] | None:
         """Wiggle the pointer and find it anywhere on screen (the span may still be unknown)."""
@@ -102,11 +162,20 @@ class Phone:
 
     def _save(self) -> None:
         """Calibration plus the observed landings, so the correction survives a restart."""
-        self._file.write_text(json.dumps({**self.span, "seen": {k: list(v) for k, v in self._seen.items()}}))
+        temporary = self._file.with_suffix(".tmp")
+        try:
+            temporary.write_text(json.dumps({**self.span, "seen": {k: list(v) for k, v in self._seen.items()}}))
+            temporary.replace(self._file)  # Keep the previous file intact if writing fails.
+        finally:
+            temporary.unlink(missing_ok=True)
 
     async def point(self, x: float, y: float, aim: bool = False) -> None:
+        if self._axis_samples is not None:
+            raise RuntimeError("axis calibration in progress; finish or stop first")
         if not self.calibrated:
             raise RuntimeError("pointer not calibrated")
+        log.info("pointer target: x=%.6f y=%.6f span=%s tracked=%s moves=%s mode=%s",
+                 x, y, self.span, self._pos, self._moves, "axis" if self.axis_move else "combined")
         await self._move_to(self._dx(x), self._dy(y))
         if aim and self.screen is not None:
             await self._aim(x, y)
@@ -159,16 +228,27 @@ class Phone:
             await self.device.send("release")
             self._pos, self._link = None, self.device.links
         if self._pos is None or (rehome and self._moves >= REHOME_EVERY):
+            log.info("pointer home: reason=%s", "unknown position" if self._pos is None else "periodic")
             await self.device.send("home")
             self._pos, self._moves = (0, 0), 0
         x, y = self._pos
         self._pos = None  # unknown until the move succeeds
-        await self.device.send(f"move {tx - x} {ty - y}")
+        log.info("pointer move: target_units=(%s,%s) delta=(%s,%s)", tx, ty, tx - x, ty - y)
+        if self.axis_move and rehome:  # Match axis calibration without changing a pressed drag's path.
+            if tx != x:
+                await self.device.send(f"move {tx - x} 0")
+            if ty != y:
+                await self.device.send(f"move 0 {ty - y}")
+        else:
+            await self.device.send(f"move {tx - x} {ty - y}")
         self._pos, self._moves = (tx, ty), self._moves + 1
 
     async def reset(self) -> None:
         """Let go of the button and re-home the pointer, whatever state a gesture left."""
+        self._axis_samples = None
         self._pos = None
+        if not self.device.connected:
+            return
         await self.device.send("release")
         await self.device.send("home")
         self._pos, self._moves = (0, 0), 0

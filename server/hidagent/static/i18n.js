@@ -1,6 +1,11 @@
 // UI strings and plain-language step descriptions, in English and Simplified Chinese.
 const I18N = {
   en: {
+    calibrateManual: "Manual calibration", calibrateAxis: "Axis calibration", calCancel: "Cancel calibration",
+    calAxisX150: "Step 1/4: X moved 150 units. Click the real pointer center; do not click a target grid point.",
+    calAxisX350: "Step 2/4: X moved 350 units total. Click the real pointer center.",
+    calAxisY150: "Step 3/4: Re-homed, Y moved 150 units. Click the real pointer center.",
+    calAxisY350: "Step 4/4: Y moved 350 units total. Click the real pointer center to save.",
     gridToggle: "Coordinate grid", gridHint: "Target coordinates (0–1), not the measured phone pointer position",
     layoutPortrait: "Layout: portrait", layoutLandscape: "Layout: landscape", layoutToggle: "Toggle landscape layout",
     waiting: "Waiting for the phone screen…", liveCaption: "Live screen · click to tap, drag to swipe",
@@ -22,6 +27,11 @@ const I18N = {
       "Open Settings and go to Wi-Fi", "Open Notes and write \"hello\""],
   },
   zh: {
+    calibrateManual: "手动校准", calibrateAxis: "分轴校准", calCancel: "取消校准",
+    calAxisX150: "第 1/4 步：X 轴已移动 150 单位。请点击真实指针中心，不是网格目标点。",
+    calAxisX350: "第 2/4 步：X 轴累计移动 350 单位。请点击真实指针中心。",
+    calAxisY150: "第 3/4 步：已重新归位，Y 轴移动 150 单位。请点击真实指针中心。",
+    calAxisY350: "第 4/4 步：Y 轴累计移动 350 单位。请点击真实指针中心，完成后保存。" ,
     gridToggle: "坐标网格", gridHint: "目标坐标（0～1），不是手机实际指针位置",
     layoutPortrait: "布局：竖屏", layoutLandscape: "布局：横屏", layoutToggle: "切换横竖布局",
     waiting: "等待手机画面…", liveCaption: "实时画面 · 点击 = 点按，拖动 = 滑动",

@@ -35,6 +35,80 @@ node --test tests/layout.test.cjs
 node --test --test-concurrency=1 tests/layout.browser.cjs tests/grid.browser.cjs
 ```
 
+## Comparing automatic and manual calibration
+
+The existing **Calibrate / 校准** button first attempts automatic two-point calibration.
+Use **Manual calibration / 手动校准** to skip detection: the pointer is homed and
+moved exactly 200 mouse units along each axis, then click its center in the preview.
+This completion replaces the saved span and clears learned `seen` samples.
+Back up `/data/calibration.json` before comparing results. Keep orientation and iOS
+pointer settings unchanged, pause other controllers, and repeat the same API targets.
+Manual calibration is a diagnostic alternative, not a guarantee of full-screen accuracy.
+
+`POST /api/calibrate/start` accepts optional `{"manual":true}`; an empty body or
+`{"manual":false}` keeps automatic behavior. Failed automatic calibration always
+re-homes and moves 200 units before asking for a manual point, even if the first
+automatic point was detected. Manager's existing proxy supports this request unchanged.
+
+### Diagnostic axis calibration
+
+Back up the calibration file first. Choose **Axis calibration / 分轴校准** and wait
+for the real pointer to settle after each move (including AirPlay latency). Click
+its center four times as prompted: X=150 units, X=350 units total, then re-home,
+Y=150 units, Y=350 units total. These are mouse units, **not target grid coordinates**.
+The procedure never clicks the phone. Do not use other controllers while sampling.
+Only after all four valid samples are collected are the new per-axis spans and
+two-point offset samples saved. **Cancel calibration** uses the stop API to release
+and attempt re-homing, preserving the previous saved calibration. Returning/closing
+the page does not cancel the server-side procedure; stop it before normal operation.
+Samples near the edge or with less than 0.03 separation are rejected: cancel if a
+350-unit move reaches the screen boundary. This diagnostic does not guarantee an
+accurate full-screen mapping and does not alter firmware pacing.
+
+The existing endpoints accept `POST /api/calibrate/start` with `{"mode":"axis"}`,
+then four `POST /api/calibrate/finish` calls with observed `{"x":...,"y":...}`.
+Responses contain `step` (`x150`, `x350`, `y150`, `y350`, then null on completion).
+During sampling, normal pointer targets are blocked; the stop API cancels it.
+
+INFO logs now include pointer targets, calibration spans, tracked position, home
+reasons, move deltas, and HID home/move/release/click acknowledgements and latency.
+No screenshot or typed text is added to these logs. Save logs alongside each test
+sequence; keep them private as target coordinates are still interaction metadata.
+For comparison, repeat the same five API targets after backing up the previous data,
+first with a stop before each target, then as one uninterrupted sequence.
+
+### Diagnostic X-then-Y positioning
+
+Set `HIDAGENT_AXIS_MOVE=1` in the server process environment and restart to compare
+single-axis positioning with the default combined movement (`0` or unset). In Docker
+Compose, add `HIDAGENT_AXIS_MOVE: "1"` under the server service's `environment`,
+then run `docker compose up -d` to recreate it. A project `.env` alone does not pass
+this variable into a container unless the Compose file references it or uses `env_file`.
+`GET /api/status` reports `pointer_mode: "axis"` when enabled (`"combined"` otherwise);
+`pointer target` logs also include the mode.
+
+This diagnostic sends the entire X delta, waits for its acknowledgement, then sends
+the Y delta before clicking/pressing. Zero-length axes are skipped; both moves count
+as one positioning operation. A failed move leaves position unknown, prevents the
+click, and forces the next positioning operation to re-home. Drag/swipe starting
+positions use the mode, but movement while pressed keeps its existing path. Visual
+`aim=True` correction, calibration, homing and keep-awake nudges are unchanged.
+
+Back up and keep the current axis calibration, orientation and iOS pointer settings;
+do not recalibrate between comparisons or use visual aiming. Pause other controllers.
+Repeat `(0.25,0.20)`, `(0.25,0.50)`, `(0.25,0.80)` with stop before each target,
+checking that the app's controls do not cover those positions. Save screenshots and
+logs for each mode. This tests a movement-path hypothesis, not a proven accuracy fix.
+It adds a command round trip and may make positioning slower. Set the variable to
+`"0"` and recreate the container to revert; the calibration file is not changed by
+switching this mode.
+
+The 2026-10-26 device comparison showed improved landings and visually consistent
+repeated targets with axis calibration plus this mode. This is evidence for the
+tested device/settings, not a full-screen or drag accuracy guarantee. See
+[validation notes](../docs/pointer-calibration-validation-2026-10-26.md) for the
+sequences, log checks and limitations. The default remains combined positioning.
+
 ## Double tap API
 
 `POST /api/double_tap` accepts the same normalized coordinates as `/api/tap`:

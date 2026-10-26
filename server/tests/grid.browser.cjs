@@ -9,8 +9,8 @@ test('grid follows image bounds and hover coordinates equal tap API coordinates'
   const browser = await chromium.launch({ executablePath: '/usr/bin/chromium', args: ['--no-sandbox'] });
   try {
     const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
-    const errors = [], taps = [];
-    let size = [1080, 2340];
+    const errors = [], taps = [], calibration = [];
+    let size = [1080, 2340], axisStep = -1;
     page.on('pageerror', error => errors.push(error.message));
     await page.route('http://grid.test/**', async route => {
       const url = new URL(route.request().url());
@@ -18,6 +18,14 @@ test('grid follows image bounds and hover coordinates equal tap API coordinates'
         body: `<svg xmlns="http://www.w3.org/2000/svg" width="${size[0]}" height="${size[1]}"><rect width="100%" height="100%" fill="blue"/></svg>` });
       if (url.pathname.startsWith('/api/')) {
         if (url.pathname === '/api/tap') taps.push(route.request().postDataJSON());
+        if (url.pathname.startsWith('/api/calibrate/')) {
+          const body = route.request().postDataJSON();
+          calibration.push({ path: url.pathname, body });
+          if (url.pathname.endsWith('/start')) axisStep = body.mode === 'axis' ? 0 : -1;
+          else if (axisStep >= 0) axisStep++;
+          return route.fulfill({ json: { ok: true, auto: false,
+            step: axisStep >= 0 ? ['x150', 'x350', 'y150', 'y350'][axisStep] || null : undefined } });
+        }
         return route.fulfill({ json: url.pathname === '/api/status' ? {
           device: true, screen: true, calibrated: true, aspect: size[0] / size[1],
           models: {}, agent: { running: false, steps: [] }
@@ -78,6 +86,38 @@ test('grid follows image bounds and hover coordinates equal tap API coordinates'
     assert.match(await page.locator('#grid-toggle').textContent(), /网格/);
     await page.locator('#grid-toggle').click();
     assert.equal(await page.locator('#coordinate-grid').isVisible(), false);
+    await page.locator('.manual').evaluate(element => { element.open = true; });
+    await page.locator('#cal-manual').click();
+    await page.waitForFunction(() => calibrating);
+    assert.deepEqual(calibration.at(-1), { path: '/api/calibrate/start', body: { manual: true, mode: 'default' } });
+    const frame = await page.locator('#live').boundingBox();
+    await Promise.all([
+      page.waitForResponse(response => response.url().endsWith('/api/calibrate/finish')),
+      page.mouse.click(frame.x + frame.width / 2, frame.y + frame.height / 2)
+    ]);
+    assert.equal(calibration.at(-1).path, '/api/calibrate/finish');
+    assert.ok(Math.abs(calibration.at(-1).body.x - 0.5) < 0.003);
+    await page.locator('#cal-axis').click();
+    await page.waitForFunction(() => calibrating);
+    assert.deepEqual(calibration.at(-1).body, { manual: false, mode: 'axis' });
+    for (let i = 0; i < 4; i++) {
+      await page.waitForFunction(() => document.getElementById('live').style.pointerEvents !== 'none');
+      await Promise.all([
+        page.waitForResponse(response => response.url().endsWith('/api/calibrate/finish')),
+        page.mouse.click(frame.x + frame.width / 2, frame.y + frame.height / 2)
+      ]);
+    }
+    await page.waitForFunction(() => !calibrating);
+    assert.equal(await page.locator('#cal-cancel').isVisible(), false);
+    await page.locator('#cal-axis').click();
+    await page.waitForFunction(() => calibrating);
+    await page.locator('#cal-cancel').click();
+    await page.waitForFunction(() => !calibrating);
+    await page.locator('#cal-axis').click();
+    await page.waitForFunction(() => calibrating);
+    await page.locator('#estop').click();
+    await page.waitForFunction(() => !calibrating, null, { timeout: 2000 });
+    assert.equal(await page.locator('#cal-cancel').isVisible(), false);
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });

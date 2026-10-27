@@ -49,42 +49,66 @@ class Phone:
         return self.span is not None
 
     async def start_calibration(self, manual: bool = False) -> bool:
-        """Find the pointer on screen at two known distances from the corner and fit the mapping from both.
-
-        Two points give the scale and the offset, which one point cannot (iOS pointer motion is not exactly
-        proportional). Returns True when it calibrated itself; otherwise the user clicks the pointer
-        (finish_calibration).
-        """
+        """Automatic four-stop axis fit; manual=True keeps the legacy one-point API."""
         self._axis_samples = None
         self._pos = None
-        await self.device.send("home")
         if manual:
-            await self.device.send(f"move {CALIBRATION_MOVE} {CALIBRATION_MOVE}")
-            return False
-        seen = []
-        for units in CALIBRATION_STOPS:
-            step = units - (seen[-1][0] if seen else 0)
-            await self.device.send(f"move {step} {step}")
-            found = await self._find_pointer() if self.screen is not None and self.screen.live else None
-            if not found:
-                break
-            seen.append((units, *found))
-        if len(seen) < 2:
-            log.info("calibration: pointer not found on screen, waiting for a click")
-            # Always reset: a partial automatic attempt may already have moved 350 units.
             await self.device.send("home")
             await self.device.send(f"move {CALIBRATION_MOVE} {CALIBRATION_MOVE}")
             return False
-        (u1, x1, y1), (u2, x2, y2) = seen
-        self.span = {"w": round((u2 - u1) / (x2 - x1)), "h": round((u2 - u1) / (y2 - y1))}
-        for samples in self._seen.values():
-            samples.clear()
-        for units, x, y in seen:  # where each stop landed, so moves are corrected for the offset too
-            self._seen["x"].append((units / self.span["w"], x))
-            self._seen["y"].append((units / self.span["h"], y))
-        self._save()
-        log.info("calibration: pointer at %s, span %s", [(round(x, 3), round(y, 3)) for _, x, y in seen], self.span)
-        return True
+        if self.screen is None or not self.screen.live:
+            raise RuntimeError("Automatic calibration needs live mirroring; use Manual calibration")
+        samples = self._axis_samples = []
+        link = self.device.links
+
+        def active():
+            if self._axis_samples is not samples or self.device.links != link:
+                raise RuntimeError("Automatic calibration cancelled or device changed; use Manual calibration")
+
+        try:
+            for index, (axis, units) in enumerate((("x", 150), ("x", 200), ("y", 150), ("y", 200))):
+                active()
+                if index in (0, 2):
+                    sent = time.time()
+                    await self.device.send("home")
+                    await self._calibration_frame(sent)
+                active()
+                before = await self._calibration_frame()
+                active()
+                sent = time.time()
+                await self.device.send(f"move {units if axis == 'x' else 0} {units if axis == 'y' else 0}")
+                after = await self._calibration_frame(sent)
+                active()
+                try:
+                    found = vision.calibration_pointer(before, after, axis)
+                except (OSError, ValueError) as e:
+                    raise RuntimeError("Invalid mirroring image; use Manual calibration") from e
+                if found is None:
+                    raise RuntimeError("Automatic pointer detection uncertain; use Manual calibration")
+                value = found[0 if axis == "x" else 1]
+                self._validate_axis_sample(samples, value)
+                log.info("automatic axis sample %s: x=%.6f y=%.6f", index, *found)
+                if index == 3:
+                    self._complete_axis_calibration(samples + [value])
+                else:
+                    samples.append(value)
+            return True
+        except ValueError as e:
+            raise RuntimeError("Invalid automatic samples; use Manual calibration") from e
+        finally:
+            if self._axis_samples is samples:
+                self._axis_samples = None
+            self._pos = None
+
+    async def _calibration_frame(self, since: float | None = None) -> bytes:
+        if since is not None and not await self.screen.fresh(since, 2.0):
+            raise RuntimeError("No new mirroring frame; use Manual calibration")
+        await self.screen.settled(quiet=0.3, least=0.4, most=2.0)
+        if not self.screen.live or not self.screen.frame:
+            raise RuntimeError("Mirroring lost; use Manual calibration")
+        if time.time() - self.screen.updated < 0.3:
+            raise RuntimeError("Mirroring did not settle; use Manual calibration")
+        return self.screen.frame
 
     async def start_axis_calibration(self) -> str:
         self._pos = None
@@ -104,23 +128,10 @@ class Phone:
             raise RuntimeError("no axis calibration in progress")
         index = len(samples)
         value = x if index < 2 else y
-        if not 0.01 < value < 0.98 or (index % 2 and value - samples[-1] < 0.03):
-            raise ValueError("Select the pointer away from the boundary and beyond the first point")
+        self._validate_axis_sample(samples, value)
         log.info("axis calibration sample %s: x=%.6f y=%.6f", index, x, y)
         if index == 3:
-            values = samples + [value]
-            span = {"w": round(200 / (values[1] - values[0])),
-                    "h": round(200 / (values[3] - values[2]))}
-            previous = self.span, self._seen
-            self.span = span
-            self._seen = {axis: deque([(units / span[key], measured) for units, measured in
-                                      zip(CALIBRATION_STOPS, values[offset:offset + 2], strict=True)], maxlen=12)
-                          for axis, key, offset in (("x", "w", 0), ("y", "h", 2))}
-            try:
-                self._save()
-            except Exception:
-                self.span, self._seen = previous
-                raise
+            self._complete_axis_calibration(samples + [value])
             self._axis_samples = None
             self._pos = None
             log.info("axis calibration complete: span=%s seen=%s", self.span, dict(self._seen))
@@ -140,18 +151,24 @@ class Phone:
         samples.append(value)
         return ("x350", "y150", "y350")[index]
 
-    async def _find_pointer(self) -> tuple[float, float] | None:
-        """Wiggle the pointer and find it anywhere on screen (the span may still be unknown)."""
-        await self.screen.settled(quiet=0.2, least=0.3, most=1.5)
-        before, sent = self.screen.frame, time.time()
-        await self.device.send(f"move {NUDGE} 0")
-        after = await self.screen.fresh(sent, 1.0)
-        if after:
-            await self.screen.settled(quiet=0.15, least=0.1, most=0.6)
-            after = self.screen.frame
-        await self.device.send(f"move -{NUDGE} 0")
-        found = before and after and vision.pointer(before, after, (0.5, 0.5), 0.025, reach=(0.5, 0.5))
-        return found if found and 0.03 < found[0] < 0.97 and 0.03 < found[1] < 0.97 else None
+    @staticmethod
+    def _validate_axis_sample(samples: list[float], value: float) -> None:
+        if not 0.01 < value < 0.98 or (len(samples) % 2 and value - samples[-1] < 0.03):
+            raise ValueError("Select the pointer away from the boundary and beyond the first point")
+
+    def _complete_axis_calibration(self, values: list[float]) -> None:
+        span = {"w": round(200 / (values[1] - values[0])),
+                "h": round(200 / (values[3] - values[2]))}
+        previous = self.span, self._seen
+        self.span = span
+        self._seen = {axis: deque([(units / span[key], measured) for units, measured in
+                                  zip(CALIBRATION_STOPS, values[offset:offset + 2], strict=True)], maxlen=12)
+                      for axis, key, offset in (("x", "w", 0), ("y", "h", 2))}
+        try:
+            self._save()
+        except Exception:
+            self.span, self._seen = previous
+            raise
 
     def finish_calibration(self, x: float, y: float) -> None:
         """x, y: where the pointer ended up after start_calibration() (one point, picked by the user)."""

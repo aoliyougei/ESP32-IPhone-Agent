@@ -70,17 +70,68 @@ def test_axis_positioning_skips_zero_length_axes(tmp_path, target, expected):
     assert phone._moves == 1
 
 
-@pytest.mark.parametrize("found", [None, (0.15, 0.3)])
-def test_auto_calibration_fallback_resets_to_manual_distance(tmp_path, found):
-    device = AsyncMock()
-    phone = Phone(device, tmp_path / "calibration.json", Mock(live=True))
-    phone._find_pointer = AsyncMock(side_effect=[found, None])
-    assert asyncio.run(phone.start_calibration()) is False
-    commands = [call.args[0] for call in device.send.await_args_list]
-    assert commands[-2:] == ["home", "move 200 200"]
-    phone.finish_calibration(0.2, 0.4)
+def auto_phone(tmp_path):
+    device = AsyncMock(links=1)
+    screen = Mock(live=True, frame=b"frame", updated=0)
+    screen.settled = AsyncMock()
+    screen.fresh = AsyncMock(return_value=b"frame")
+    phone = Phone(device, tmp_path / "calibration.json", screen)
+    phone.span = {"w": 986, "h": 456}
+    phone._save()
+    return phone, device, screen
+
+
+def test_auto_axis_calibration_uses_same_moves_and_fit_as_manual(tmp_path, monkeypatch):
+    phone, device, _ = auto_phone(tmp_path)
+    monkeypatch.setattr("hidagent.phone.vision.calibration_pointer", Mock(side_effect=[
+        (0.17, 0.03), (0.37, 0.03), (0.013, 0.32), (0.013, 0.72)]))
+    assert asyncio.run(phone.start_calibration()) is True
+    assert [c.args[0] for c in device.send.await_args_list] == [
+        "home", "move 150 0", "move 200 0", "home", "move 0 150", "move 0 200"]
     assert phone.span == {"w": 1000, "h": 500}
-    assert not phone._seen["x"] and not phone._seen["y"]
+    assert phone._fix(0.5, "x") == pytest.approx(0.48)
+    assert phone._axis_samples is None and phone._pos is None
+
+
+@pytest.mark.parametrize("failed_sample", range(4))
+def test_auto_axis_detection_failure_keeps_previous_file(tmp_path, monkeypatch, failed_sample):
+    phone, device, _ = auto_phone(tmp_path)
+    original = phone._file.read_text()
+    readings = [(0.17, 0.03), (0.37, 0.03), (0.013, 0.32), (0.013, 0.72)]
+    readings[failed_sample] = None
+    monkeypatch.setattr("hidagent.phone.vision.calibration_pointer", Mock(side_effect=readings))
+    with pytest.raises(RuntimeError, match="Manual calibration"):
+        asyncio.run(phone.start_calibration())
+    assert phone._file.read_text() == original
+    assert phone.span == {"w": 986, "h": 456}
+    assert phone._axis_samples is None and phone._pos is None
+    assert "move 200 200" not in [c.args[0] for c in device.send.await_args_list]
+
+
+@pytest.mark.parametrize("failure", ["missing_frame", "disconnected", "cancelled", "device_error", "animation"])
+def test_auto_axis_interruption_never_saves(tmp_path, monkeypatch, failure):
+    phone, device, screen = auto_phone(tmp_path)
+    original = phone._file.read_text()
+    monkeypatch.setattr("hidagent.phone.vision.calibration_pointer", Mock(return_value=(0.17, 0.03)))
+    if failure == "missing_frame":
+        screen.fresh.return_value = None
+    elif failure == "device_error":
+        device.send.side_effect = DeviceError("lost link")
+    elif failure == "animation":
+        import time
+        screen.updated = time.time()
+    else:
+        async def interrupt(*args, **kwargs):
+            if failure == "disconnected":
+                device.links = 2
+            else:
+                phone._axis_samples = None
+            return b"frame"
+        screen.fresh.side_effect = interrupt
+    with pytest.raises(RuntimeError):
+        asyncio.run(phone.start_calibration())
+    assert phone._file.read_text() == original
+    assert phone._axis_samples is None and phone._pos is None
 
 
 def test_axis_calibration_samples_and_saves_only_after_four_points(tmp_path):
@@ -236,6 +287,43 @@ def test_axis_calibration_api(tmp_path, monkeypatch):
         assert response.status_code == 200
         assert response.json()["step"] == step
     assert phone.span == {"w": 1000, "h": 500}
+
+
+def test_auto_axis_api_failure_does_not_enter_single_point_mode(tmp_path, monkeypatch):
+    monkeypatch.setenv("HIDAGENT_DATA", str(tmp_path))
+    from fastapi.testclient import TestClient
+
+    from hidagent import app as web
+
+    phone, _, screen = auto_phone(tmp_path)
+    screen.live = False
+    monkeypatch.setattr(web, "phone", phone)
+    response = TestClient(web.app).post("/api/calibrate/start")
+    assert response.status_code == 409
+    assert "Manual calibration" in response.json()["detail"]
+    assert phone._axis_samples is None
+
+
+def test_auto_axis_corrupt_image_preserves_parameters(tmp_path):
+    phone, _, _ = auto_phone(tmp_path)
+    original = phone._file.read_text()
+    with pytest.raises(RuntimeError, match="Invalid mirroring image"):
+        asyncio.run(phone.start_calibration())
+    assert phone._file.read_text() == original
+    assert phone._axis_samples is None
+
+
+def test_auto_axis_fit_save_failure_restores_previous_parameters(tmp_path, monkeypatch):
+    phone, _, _ = auto_phone(tmp_path)
+    original = phone._file.read_text()
+    monkeypatch.setattr("hidagent.phone.vision.calibration_pointer", Mock(side_effect=[
+        (0.17, 0.03), (0.37, 0.03), (0.013, 0.32), (0.013, 0.72)]))
+    monkeypatch.setattr(phone, "_save", Mock(side_effect=OSError("disk error")))
+    with pytest.raises(OSError):
+        asyncio.run(phone.start_calibration())
+    assert phone.span == {"w": 986, "h": 456}
+    assert phone._file.read_text() == original
+    assert phone._axis_samples is None and phone._pos is None
 
 
 def test_force_manual_skips_visual_detection(tmp_path):

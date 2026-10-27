@@ -2,7 +2,7 @@
 
 import io
 
-from PIL import Image, ImageChops
+from PIL import Image, ImageChops, ImageFilter
 
 
 def _gray(jpeg: bytes) -> Image.Image:
@@ -33,6 +33,70 @@ def changed(before: bytes | None, after: bytes | None, ignore: tuple = (), thres
             if y > 0.06 * h and all((x - mx) ** 2 + (y - my) ** 2 > (0.05 * w) ** 2 for mx, my in masks):
                 hits += 1
     return hits >= 6
+
+
+def calibration_pointer(before: bytes, after: bytes, axis: str, direction: int = 1) -> tuple[float, float] | None:
+    """Locate the destination of a single-axis move; reject anything but two compact changed spots.
+
+    Unlike aim detection this includes the screen edges and measures displacement, not an assumed nudge.
+    Calibration requires a still background and a visible pointer at both stops.
+    """
+    a, b = _gray(before), _gray(after)
+    if a.size != b.size:
+        return None
+    a.thumbnail((640, 640))
+    b = b.resize(a.size)
+    w, h = a.size
+    mask = ImageChops.difference(a, b).point(lambda v: 255 if v > 30 else 0)
+    # Join JPEG-fragmented pointer pixels without merging the distant sampling stops.
+    joined = mask.filter(ImageFilter.MaxFilter(3))
+    pixels, original = joined.tobytes(), mask.tobytes()
+    remaining = {i for i, value in enumerate(pixels) if value}
+    if len(remaining) > w * h * 0.08:
+        return None
+    spots = []
+    while remaining:
+        seed = remaining.pop()
+        pending, points = [seed], []
+        while pending:
+            i = pending.pop()
+            if original[i]:
+                points.append((i % w, i // w))
+            for x, y in ((i % w - 1, i // w), (i % w + 1, i // w),
+                         (i % w, i // w - 1), (i % w, i // w + 1)):
+                neighbor = y * w + x
+                if 0 <= x < w and 0 <= y < h and neighbor in remaining:
+                    remaining.remove(neighbor)
+                    pending.append(neighbor)
+        if len(points) < 4:
+            continue
+        xs, ys = zip(*points, strict=True)
+        if max(xs) - min(xs) > 0.12 * min(w, h) or max(ys) - min(ys) > 0.12 * min(w, h):
+            return None
+        spots.append((sum(xs) / len(xs) / w, sum(ys) / len(ys) / h, len(points)))
+        if len(spots) > 2:
+            return None
+    if len(spots) != 2 or max(s[2] for s in spots) > 3 * min(s[2] for s in spots):
+        return None
+    index = 0 if axis == "x" else 1
+    start, end = sorted(spots, key=lambda s: direction * s[index])
+    if direction * (end[index] - start[index]) < 0.03 or abs(end[1 - index] - start[1 - index]) > 0.015:
+        return None
+    # Difference alone is unsigned: check which spot became pointer-like in the after frame.
+    # A normal pointer keeps its appearance between the two locations.
+    sx, sy = round(start[0] * w), round(start[1] * h)
+    ex, ey = round(end[0] * w), round(end[1] * h)
+    def contrast(image, x, y):
+        radius = max(3, round(0.045 * min(w, h)))
+        ring = [image.getpixel((min(w - 1, max(0, x + dx)), min(h - 1, max(0, y + dy))))
+                for dx, dy in ((radius, 0), (-radius, 0), (0, radius), (0, -radius))]
+        return abs(image.getpixel((x, y)) - sum(ring) / len(ring))
+
+    if (abs(a.getpixel((sx, sy)) - b.getpixel((ex, ey))) > 35
+            or contrast(a, sx, sy) < contrast(b, sx, sy) + 20
+            or contrast(b, ex, ey) < contrast(a, ex, ey) + 20):
+        return None
+    return end[0], end[1]
 
 
 def pointer(before: bytes, after: bytes, near: tuple[float, float], shift: float,

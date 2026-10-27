@@ -37,10 +37,10 @@ node --test --test-concurrency=1 tests/layout.browser.cjs tests/grid.browser.cjs
 
 ## Comparing automatic and manual calibration
 
-The existing **Calibrate / 校准** button still attempts automatic two-point diagonal
-calibration. **Manual calibration / 手动校准** now runs the four-step axis procedure
-below; there is no separate Axis calibration button. It skips visual detection and
-fits both per-axis span and offset from four user-selected pointer centers.
+The **Calibrate / 校准** button now attempts automatic four-stop axis calibration.
+**Manual calibration / 手动校准** uses the same four-stop procedure below, replacing
+visual detection with user-selected pointer centers. Both share sample validation,
+span/offset fitting and saving; there is no separate Axis calibration button.
 Back up `/data/calibration.json` first. Keep orientation and iOS pointer settings
 unchanged and pause other controllers. This UI change does not enable X-then-Y
 positioning: retain `HIDAGENT_AXIS_MOVE=1` to use the combination validated on the
@@ -49,9 +49,21 @@ tested device. Calibration is not a guarantee of full-screen accuracy.
 For existing API clients, `POST /api/calibrate/start` with `{"manual":true}` still
 uses the legacy single-point diagonal procedure (200/200, one finish request),
 which clears old `seen` samples. The new manual UI instead sends `{"mode":"axis"}`.
-An empty body or `{"manual":false}` keeps automatic behavior. Failed automatic calibration always
-re-homes and moves 200 units before asking for a manual point, even if the first
-automatic point was detected. Manager's existing proxy supports this request unchanged.
+An empty body or `{"manual":false}` starts automatic axis calibration. Success returns
+`auto:true`; uncertain detection, missing mirroring, cancellation or device errors
+return HTTP 409 with a reason. There is **no diagonal single-point fallback**: click
+Manual calibration to start a new four-step procedure. Previous parameters remain
+unchanged unless all four automatic samples validate and save successfully.
+Manager's existing proxy supports these routes unchanged.
+
+Automatic detection compares the before/after images of each real axis move, without
+extra nudges or a guessed displacement. It includes the top and left edges, rejecting
+ambiguous changes, incompatible dimensions and incorrect movement direction. Use a
+still screen with a visible pointer, pause all other controllers and keep orientation
+unchanged. Frame waits are bounded; reception timestamps cannot prove source-frame
+freshness. Static-background synthetic tests do not establish reliability on every
+real UI, pointer appearance or AirPlay delay. Detection may reject valid samples;
+use manual calibration rather than weakening validation or adding compensation.
 
 ### Four-step manual calibration
 

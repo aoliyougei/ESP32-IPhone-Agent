@@ -9,6 +9,14 @@
 - Product name: ESP32 Agent.
 - `server/` is legacy and no longer needed.
 
+## v0.1.20
+
+- Legacy Server: align automatic calibration with the four-stop axis procedure and share manual sample validation, fitting and saving.
+- Add calibration-only image-difference detection without guessed probe displacement; leave Agent aim detection unchanged.
+- On uncertain detection, missing/unstable frames, cancellation or device changes, preserve previous calibration and report an error directing users to Manual calibration; remove automatic diagonal fallback.
+- Automatic visual detection has synthetic/container coverage but has not yet been validated on a real iPhone. Back up calibration and retain the manual option.
+- Synchronize package versions; Manager has no functional changes. X-then-Y positioning remains opt-in.
+
 ## v0.1.19
 
 - Legacy Server: use the existing four-step axis procedure for the Manual calibration button; remove the separate Axis calibration button.

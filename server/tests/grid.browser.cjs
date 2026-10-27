@@ -10,7 +10,7 @@ test('grid follows image bounds and hover coordinates equal tap API coordinates'
   try {
     const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
     const errors = [], taps = [], calibration = [];
-    let size = [1080, 2340], axisStep = -1;
+    let size = [1080, 2340], axisStep = -1, autoFailure = false;
     page.on('pageerror', error => errors.push(error.message));
     await page.route('http://grid.test/**', async route => {
       const url = new URL(route.request().url());
@@ -21,6 +21,8 @@ test('grid follows image bounds and hover coordinates equal tap API coordinates'
         if (url.pathname.startsWith('/api/calibrate/')) {
           const body = route.request().postDataJSON();
           calibration.push({ path: url.pathname, body });
+          if (autoFailure && url.pathname.endsWith('/start') && body.mode === 'default')
+            return route.fulfill({ status: 409, json: { detail: 'Automatic pointer detection uncertain; use Manual calibration' } });
           if (url.pathname.endsWith('/start')) axisStep = body.mode === 'axis' ? 0 : -1;
           else if (axisStep >= 0) axisStep++;
           return route.fulfill({ json: { ok: true, auto: false,
@@ -112,6 +114,13 @@ test('grid follows image bounds and hover coordinates equal tap API coordinates'
     await page.locator('#estop').click();
     await page.waitForFunction(() => !calibrating, null, { timeout: 2000 });
     assert.equal(await page.locator('#cal-cancel').isVisible(), false);
+    autoFailure = true;
+    await page.locator('#cal').click();
+    await page.waitForFunction(() => !document.getElementById('cal').disabled);
+    assert.equal(await page.evaluate(() => calibrating), false);
+    assert.equal(await page.locator('#cal-cancel').isVisible(), false);
+    assert.match(await page.locator('#msg').textContent(), /Manual calibration/);
+    assert.equal(await page.locator('#cal-manual').isEnabled(), true);
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });

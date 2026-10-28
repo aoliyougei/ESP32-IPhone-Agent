@@ -60,7 +60,8 @@ Pi 提供官方包导入；实际加载不需要在本目录执行 npm install�
   例如 `http` → `10.0.10.62` → `8890`，组成 `http://10.0.10.62:8890`。
   IP / 主机名不含协议、路径或端口；IPv6 地址需带方括号，例如 `[::1]`。
 - **查看**：显示当前会话的 Server 地址及项目配置路径，不发起网络请求。
-- **删除**：二次确认后删除项目配置，并立即清除当前会话地址；不操作 Server 或手机。
+- **删除**：二次确认后清除项目 Server 地址（保留截图分析模型设置）；不操作 Server 或手机。
+- **截图分析模型**：弹窗选择 Pi 已配置且支持图片输入的可用模型，或选择“不使用额外模型”恢复原截图行为。
 
 每个项目只保存一个 Server；已有配置时，新增需确认覆盖。
 连接的是具体 Server，不是 Manager。保存前校验地址，任意一步取消都不改变原配置，保存后当前会话立即生效。
@@ -70,11 +71,13 @@ Pi 提供官方包导入；实际加载不需要在本目录执行 npm install�
 
 ```json
 {
-  "serverUrl": "http://10.0.10.62:8890"
+  "serverUrl": "http://10.0.10.62:8890",
+  "analysisModel": { "provider": "你的provider", "id": "你的视觉模型ID" }
 }
 ```
 
 - 每个项目独立保存；后续会话自动读取同一项目的配置，插件更新和重新安装不会覆盖它。
+- `analysisModel` 为可选项，通过菜单配置，无需手工填写或存储 API Key。新增/覆盖 Server 保留模型选择。
 - 使用会话的 `ctx.cwd`，适配进程目录与项目目录不同的 Web/RPC/SDK 环境。
 - 配置使用临时文件及原子重命名保存；写入失败时不切换当前连接地址。
 - 不读取 `.env`、`PHONE_SERVER_URL` 或 `PHONE_ALLOW_ACTIONS`，也没有全局地址兜底。
@@ -98,7 +101,7 @@ Server 配置覆盖、删除的二次确认保持不变；设备就绪检查、�
 | 名称 | 参数 | 用途 |
 |---|---|---|
 | `phone_status` | `{}` | 查询 ESP32、镜像、校准、内置 Agent 状态 |
-| `phone_screenshot` | `{}` | JPEG 以图片内容返回给 Pi 模型，不落盘 |
+| `phone_screenshot` | `{}` | 返回 JPEG；设置分析模型时，同时返回该模型的截图定位分析，不落盘 |
 | `phone_action` | 见下方 | 单个实际动作 |
 
 ```json
@@ -119,6 +122,24 @@ Server 配置覆盖、删除的二次确认保持不变；设备就绪检查、�
 键盘字符串语法由现有 Server 决定；只支持当前固件的 ASCII 输入，最大 1000 字符。
 没有 raw 命令、任意请求、内置 Agent 启动、自动校准或自动重试入口。
 校准请先在网页完成。动作前要求板子、镜像和校准就绪，并拒绝与内置 Agent 同时运行。
+
+## 截图分析模型
+
+运行 `/esp32-iphone-server` → **截图分析模型** → 选择 `provider/model ID`。
+复用 Pi 已配置的模型及其认证，模型选择保存后立即生效。可随时选择“不使用额外模型”关闭。
+
+设置后，每次 `phone_screenshot` 只取一次截图，将**同一张 JPEG + 当前分支的会话文本上下文**
+交给选定模型，通过固定的定位提示词要求分析当前任务、返回相对整张图的 0–1 坐标并说明不确定性。
+上下文使用 Pi 的会话重建/压缩结果，不转发历史图片、隐藏思考或主模型系统提示词。
+返回给当前 Pi 的内容仍包含原截图，并附上所选模型的分析；由当前 Pi 决定是否调用 `phone_action`。
+分析模型没有操作工具，不会直接控制手机；其输出仅为建议，不能修复鼠标校准偏差。
+
+- 未设置时与原版一致，只返回截图，不额外调用模型。
+- 已设置但模型不可用、不支持图片、缺少认证或分析失败时明确报错，不静默切回其他模型。
+- 分析请求最多等待 60 秒，支持取消；额外模型的用量回报给 Pi。
+- **隐私与费用**：截图及会话文本会发送到所选模型的服务，产生额外费用和延迟。
+  上下文可能含项目资料或工具输出；只选择你信任的服务，不要在包含敏感信息的会话中启用。
+- 模型列表取自当前 Pi 实例的配置，不是浏览器端另一个实例的配置；Pi Web 需支持标准选择弹窗。
 
 ## 使用顺序
 
@@ -148,12 +169,13 @@ HTTP 请求 30 秒超时；JPEG 上限 8 MiB，JSON 上限 256 KiB；拒绝 HTTP
 node --test client.test.mjs
 # 以下依赖仅安装在开发容器，不用于安装此扩展
 npm install --no-save @earendil-works/pi-coding-agent@1.2.0 typescript tsx
-npx tsx --test extension.test.ts
+npx tsx --test *.test.ts
 node --test package.test.mjs
 npx tsc --noEmit --allowJs --allowImportingTsExtensions --module nodenext \
-  --moduleResolution nodenext --target es2022 --skipLibCheck index.ts extension.test.ts
+  --moduleResolution nodenext --target es2022 --skipLibCheck index.ts *.test.ts
 ```
 
 包发现测试需保留仓库目录结构及根目录 `package.json`，通过 Pi 实际的 package resolver 验证唯一扩展入口。
+分析测试模拟模型网络边界，验证模型弹窗、持久化、同一截图和上下文传递、错误处理及关闭；不调用真实模型。
 检查覆盖根目录 package 资源发现、命令配置持久化、跨会话复用、项目隔离、忽略环境变量、取消/非法输入/保存失败保护、模拟 HTTP、坐标校验、设备就绪门、禁止重试/重定向、图片结果、无确认直接执行、配置确认和动作互斥。
 不包括真实手机、实际模型看图或完整 Pi TUI/RPC 加载验证。

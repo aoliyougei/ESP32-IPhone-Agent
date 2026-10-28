@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import extension from "./index.ts";
 
-function load(cwd: string) {
+function load(cwd: string, extra: any = {}) {
   const tools = new Map<string, any>();
   const commands = new Map<string, any>();
   let start: any;
@@ -17,7 +17,7 @@ function load(cwd: string) {
   } as any);
   start({}, { cwd });
   const menu = (answers: (string | undefined)[], confirmed = true, hasUI = true, notices: string[] = []) =>
-    commands.get("esp32-iphone-server").handler("", { cwd, hasUI, ui: {
+    commands.get("esp32-iphone-server").handler("", { cwd, hasUI, ...extra, ui: {
       select: async () => answers.shift(), input: async () => answers.shift(),
       confirm: async () => confirmed, notify(message: string) { notices.push(message); },
     } });

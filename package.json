@@ -1,6 +1,6 @@
 {
   "name": "esp32-iphone-agent",
-  "version": "0.1.21",
+  "version": "0.1.22",
   "private": true,
   "keywords": ["pi-package"],
   "pi": {

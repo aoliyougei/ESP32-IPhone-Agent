@@ -129,7 +129,7 @@ def create_app(db_path, admin_token):
         static_paths = {"static/style.css", "static/app.js", "static/i18n.js"}
         actions = {"tap", "double_tap", "swipe", "scroll", "type", "key", "home", "back",
                    "calibrate/start", "calibrate/finish", "agent", "agent/stop", "agent/clear"}
-        allowed = (path in {"", "api/status", "api/frame.jpg"} | static_paths
+        allowed = (path in {"", "api/status", "api/frame.jpg", "api/detection"} | static_paths
                    or re.fullmatch(r"api/steps/[0-9]+\.jpg", path)) if request.method == "GET" else (
                        path in {"api/" + action for action in actions})
         if not allowed:

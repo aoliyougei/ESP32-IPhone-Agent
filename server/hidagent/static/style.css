@@ -185,3 +185,11 @@ body.landscape .phone .manual { flex-shrink: 0; }
   body.landscape .work { grid-column: 1; border-top: 1px solid var(--line); }
   body.landscape .log { height: 35vh; }
 }
+
+/* Detection is visual only: pointer events always reach the phone image. */
+#detection-overlay { position: absolute; pointer-events: none; overflow: hidden; z-index: 2; }
+#detection-overlay[hidden] { display: none; }
+#detection-overlay text { paint-order: stroke; stroke: #111; stroke-width: 2px; stroke-linejoin: round; font-weight: bold; }
+.detection-controls { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin: .5rem 0; }
+#detection-toggle[aria-pressed="true"] { border-color: #22c55e; }
+#detection-status { font-size: .8rem; overflow-wrap: anywhere; }

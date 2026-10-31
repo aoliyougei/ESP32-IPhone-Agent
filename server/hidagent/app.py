@@ -1,18 +1,20 @@
 """Web API + control page. Run with `python -m hidagent`."""
 
 import asyncio
+import base64
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Response
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .agent import Agent
 from .debug import Trace
+from .detection import DetectionBusy, DetectionError, Detector
 from .device import Device, DeviceError
 from .llm import LLM
 from .phone import Phone
@@ -22,6 +24,10 @@ DATA_DIR = Path(os.environ.get("HIDAGENT_DATA", Path.home() / ".hidagent"))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 DEBUG = os.environ.get("HIDAGENT_DEBUG") == "1"
 
+detection_task = None
+
+detector = Detector(Path(os.environ.get("HIDAGENT_YOLO_MODEL", DATA_DIR / "best.pt")),
+                    os.environ.get("HIDAGENT_YOLO_DEVICE", "cpu"))
 device = Device()
 screen = Screen(os.environ.get("AIRPLAY_NAME", "iPhone Agent"))
 phone = Phone(device, DATA_DIR / "calibration.json", screen,
@@ -101,6 +107,33 @@ def frame():
     if not screen.live:
         raise HTTPException(404, "no live screen: start screen mirroring on the phone")
     return Response(screen.frame, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+
+
+@app.get("/api/detection")
+async def detection():
+    global detection_task
+    if detection_task is not None and not detection_task.done():
+        raise HTTPException(409, "Detection is busy; retry shortly")
+
+    def infer():
+        if not screen.live or not screen.frame:
+            raise HTTPException(404, "No live screen")
+        shot = screen.frame
+        try:
+            result = detector.detect(shot)
+        except DetectionBusy as e:
+            raise HTTPException(409, str(e)) from e
+        except DetectionError as e:
+            raise HTTPException(503, str(e)) from e
+        if not screen.live:
+            raise HTTPException(404, "No live screen")
+        return JSONResponse({**result, "image": base64.b64encode(shot).decode("ascii")},
+                            headers={"Cache-Control": "no-store"})
+
+    detection_task = asyncio.create_task(asyncio.to_thread(infer))
+    # Client cancellation cannot cancel PyTorch; keep the busy gate until it really finishes.
+    detection_task.add_done_callback(lambda task: task.exception() if not task.cancelled() else None)
+    return await asyncio.shield(detection_task)
 
 
 @app.get("/api/steps/{index}.jpg")

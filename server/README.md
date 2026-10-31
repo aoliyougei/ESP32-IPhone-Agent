@@ -9,6 +9,63 @@ connects to it over Wi-Fi.
 run in CI; it gets fixes, not new features. Its prompts are the older ones in `hidagent/agent.py` and are not synced
 with `prompts/`.
 
+## Optional YOLO front/back detection
+
+The **YOLO detection / YOLO 检测** switch below the phone preview is off by default.
+When enabled, inference runs on the server: green boxes label **Front / 正面**,
+orange boxes label **Back / 背面**, with confidence scores. Boxes do not intercept
+clicks or change Agent screenshots, pointer calibration or device actions.
+Each displayed image is the exact frame used for its boxes. Inference is serialized,
+busy requests are rejected rather than queued, and CPU speed determines preview
+refresh rate. Errors clear the preview and appear beside the switch; turn detection
+off to resume the ordinary live view. First use loads the model and may take longer.
+No automatic clicks or front/back conflict correction are performed.
+
+Build from `server/` with one optional dependency profile:
+
+```sh
+# CPU-only PyTorch
+ docker build --build-arg YOLO_RUNTIME=cpu -t hidagent:yolo-cpu .
+# CUDA 12.4 PyTorch (can also run on CPU)
+ docker build --build-arg YOLO_RUNTIME=nvidia -t hidagent:yolo-nvidia .
+```
+
+The default `YOLO_RUNTIME=none` retains the original lightweight dependencies.
+For an existing Python environment, install PyTorch 2.5.1 / torchvision 0.20.1
+from the appropriate CPU or CUDA index, then install `.[yolo]`. The extra pins
+Ultralytics 8.3.40 and NumPy <2 to match the delivered model's training environment.
+The optional dependencies are installed via pip; the existing base-only `uv.lock`
+is not a lockfile for this extra.
+
+Place the trusted project's `yolov8n/best.pt` in the deployment's existing data
+volume, for example `/data/best.pt`. The server Docker build context does not include
+the repository-root weights and does not download any model. Configure the process
+(or the service's Compose `environment`) and restart:
+
+```env
+HIDAGENT_YOLO_MODEL=/data/best.pt
+HIDAGENT_YOLO_DEVICE=cpu
+# Or: HIDAGENT_YOLO_DEVICE=nvidia
+```
+
+`cpu` is the default. `nvidia` maps to `cuda:0`, the first **container-visible** GPU.
+Other values are rejected. NVIDIA requires a compatible host driver, NVIDIA Container
+Toolkit, a GPU-enabled container configuration (e.g. `--gpus all`), and CUDA-enabled
+PyTorch. A CPU-only image cannot enable CUDA just by changing this variable.
+GPU errors never silently fall back to CPU. A project `.env` alone does not inject
+variables into an existing container. Missing dependencies/weights only disable
+inference, not the normal phone controls. Model class mapping must be exactly
+`0: front, 1: back`, task `detect`. Only load trusted `.pt` files: PyTorch checkpoints
+can execute code. Review Ultralytics/model licensing before redistribution.
+
+Inference parameters: `imgsz=640`, `conf=0.25`, `iou=0.7`, class-aware NMS.
+`GET /api/detection` returns `{image, width, height, boxes, elapsed_ms}`: image is
+base64 JPEG, boxes contain `{class_id, confidence, xyxy}` in original pixels.
+The image is sensitive screen data, just like `/api/frame.jpg`; keep both server
+and Manager on a trusted network. Responses are not cached or saved to disk.
+No independent game-screenshot accuracy or real-device latency is guaranteed;
+training-set scores in `yolov8n/xyq-model-integration.md` are not deployment metrics.
+
 ## Web layout
 
 Use the upper-right **Layout: portrait / landscape** button to switch layouts.

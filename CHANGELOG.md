@@ -9,6 +9,16 @@
 - Product name: ESP32 Agent.
 - `server/` is legacy and no longer needed.
 
+## v0.1.23
+
+- Legacy Server: optional YOLO front/back detection on the live phone preview, with green/orange boxes and confidence scores. Detection is off by default and does not automate clicks.
+- Add serialized background inference and same-frame image/box responses; preserve raw screenshots, calibration and pointer controls.
+- Select CPU or the first visible NVIDIA GPU via `HIDAGENT_YOLO_DEVICE=cpu|nvidia`; invalid or unavailable devices fail explicitly without silent fallback.
+- Add optional CPU/CUDA Docker dependency profiles and trusted model-path configuration. Model weights are not included in images or this release.
+- Manager: allow the detection API through the saved-server console proxy.
+- Validate 95 Server Python tests, 14 Manager Python tests and five frontend tests; the operator confirmed deployment testing. NVIDIA inference and independent model accuracy were not verified.
+- Publish the tested CPU Server and Manager images under `v0.1.23` and `latest`; image package metadata remains at 0.1.20, matching the tested artifacts.
+
 ## v0.1.20
 
 - Legacy Server: align automatic calibration with the four-stop axis procedure and share manual sample validation, fitting and saving.

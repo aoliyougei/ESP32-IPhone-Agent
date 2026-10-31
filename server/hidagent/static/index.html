@@ -12,11 +12,13 @@
   <section class="col phone">
     <div class="screen">
       <img id="live" alt="">
+      <svg id="detection-overlay" aria-hidden="true" hidden></svg>
       <div id="coordinate-grid" aria-hidden="true" hidden><div id="grid-crosshair" hidden></div></div>
       <div class="hint" id="hint" data-i18n="waiting"></div>
     </div>
     <p class="caption" id="caption" data-i18n="liveCaption"></p>
     <div class="coordinate-controls"><button id="grid-toggle" type="button" aria-pressed="false" data-i18n="gridToggle"></button><output id="grid-coordinates">X: —  Y: —</output></div>
+    <div class="detection-controls"><button id="detection-toggle" type="button" aria-pressed="false" data-i18n="detectionToggle"></button><output id="detection-status" role="status"></output></div>
     <button class="estop" id="estop" data-i18n="estop"></button>
     <p class="caption" data-i18n="estopHint"></p>
     <details class="manual">

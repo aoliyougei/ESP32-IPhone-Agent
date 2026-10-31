@@ -22,6 +22,7 @@ function applyLang() {
   if (typeof applyMotion === "function") applyMotion();
   if (typeof applyLayout === "function") applyLayout();
   $("grid-coordinates").title = t("gridHint");
+  drawDetections();
 }
 document.querySelectorAll("#lang button").forEach((b) => b.addEventListener("click", () => {
   lang = b.dataset.lang;
@@ -189,6 +190,7 @@ live.addEventListener("load", () => {
   if (live.naturalWidth && live.naturalHeight)
     live.parentElement.style.setProperty("--frame-aspect", live.naturalWidth / live.naturalHeight);
   updateGrid();
+  positionDetections();
 });
 let down = null, calibrating = false;
 function imageBounds() {
@@ -223,7 +225,7 @@ $("grid-toggle").addEventListener("click", () => {
   $("grid-toggle").setAttribute("aria-pressed", String($("grid-toggle").getAttribute("aria-pressed") !== "true"));
   updateGrid();
 });
-new ResizeObserver(() => { clearCoordinates(); updateGrid(); }).observe(live);
+new ResizeObserver(() => { clearCoordinates(); updateGrid(); positionDetections(); }).observe(live);
 live.addEventListener("pointermove", e => {
   const point = frac(e);
   if (grid.hidden || !point) { clearCoordinates(); return; }
@@ -273,13 +275,70 @@ function showFrame(url) {
   updateGrid();
 }
 
-// Keep fetching the latest frame (works in every browser, unlike MJPEG).
+// One request at a time per mode; a mode change aborts/discards old responses.
+let detecting = false, detectionEpoch = 0, detectionResult = null, liveRequest = null, liveTimer;
+const detectionOverlay = $("detection-overlay");
+function positionDetections() {
+  if (detectionOverlay.hasAttribute("hidden")) return;
+  const r = imageBounds(), parent = live.parentElement.getBoundingClientRect();
+  Object.assign(detectionOverlay.style, { left: `${r.left - parent.left - live.parentElement.clientLeft}px`,
+    top: `${r.top - parent.top - live.parentElement.clientTop}px`, width: `${r.width}px`, height: `${r.height}px` });
+}
+function drawDetections() {
+  detectionOverlay.replaceChildren();
+  detectionOverlay.toggleAttribute("hidden", !detecting || !detectionResult || !live.hasAttribute("src"));
+  if (detectionOverlay.hasAttribute("hidden")) return;
+  const { width, height, boxes } = detectionResult;
+  detectionOverlay.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  for (const box of boxes) {
+    const [x1, y1, x2, y2] = box.xyxy;
+    const color = box.class_id === 0 ? "#22c55e" : "#f59e0b";
+    const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    for (const [key, value] of Object.entries({ x: x1, y: y1, width: x2 - x1, height: y2 - y1,
+      fill: "none", stroke: color, "stroke-width": 2, "vector-effect": "non-scaling-stroke" }))
+      rect.setAttribute(key, value);
+    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    text.setAttribute("x", x1); text.setAttribute("y", Math.max(height * .035, y1 - height * .01));
+    text.setAttribute("fill", color); text.setAttribute("font-size", height * .035);
+    text.textContent = `${t(box.class_id === 0 ? "detectionFront" : "detectionBack")} ${Math.round(box.confidence * 100)}%`;
+    detectionOverlay.append(rect, text);
+  }
+  positionDetections();
+}
+$("detection-toggle").addEventListener("click", () => {
+  detecting = !detecting;
+  detectionEpoch++;
+  liveRequest?.abort(); clearTimeout(liveTimer);
+  $("detection-toggle").setAttribute("aria-pressed", String(detecting));
+  $("detection-status").textContent = detecting ? t("detectionLoading") : "";
+  detectionResult = null; showFrame(""); drawDetections();
+  refreshLive();
+});
 async function refreshLive() {
+  const epoch = detectionEpoch, controller = new AbortController();
+  liveRequest = controller;
   try {
-    const r = await fetch(`/api/frame.jpg?${Date.now()}`);
-    showFrame(r.ok ? URL.createObjectURL(await r.blob()) : "");
-  } catch { showFrame(""); }  // server restarting
-  setTimeout(refreshLive, 150);
+    const r = await fetch(`${detecting ? '/api/detection' : '/api/frame.jpg'}?${Date.now()}`,
+      { signal: controller.signal });
+    if (!r.ok) {
+      const body = await r.json().catch(() => ({}));
+      throw new Error(body.detail || `${r.status}`);
+    }
+    const result = detecting ? await r.json() : null;
+    const url = result ? `data:image/jpeg;base64,${result.image}` : URL.createObjectURL(await r.blob());
+    // Decode before swapping so the SVG and displayed image always belong together.
+    const image = new Image(); image.src = url;
+    try { await image.decode(); } catch (error) { if (url.startsWith('blob:')) URL.revokeObjectURL(url); throw error; }
+    if (epoch !== detectionEpoch) { if (url.startsWith('blob:')) URL.revokeObjectURL(url); return; }
+    detectionResult = result;
+    showFrame(url); drawDetections();
+    $("detection-status").textContent = result ? `${result.elapsed_ms} ms` : "";
+  } catch (error) {
+    if (epoch !== detectionEpoch) return;
+    detectionResult = null; showFrame(""); drawDetections();
+    $("detection-status").textContent = detecting ? `${t("detectionError")}: ${error.message}` : "";
+  }
+  if (epoch === detectionEpoch) liveTimer = setTimeout(refreshLive, detecting ? 300 : 150);
 }
 
 // ---- controls ------------------------------------------------------------------------

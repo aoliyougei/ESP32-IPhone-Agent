@@ -99,6 +99,9 @@ def test_console_routes_rewrite_and_isolate_devices(client):
         assert response.status_code == 409
         assert calls[-1].url.path == "/api/double_tap"
         assert calls[-1].url.port == a["port"]
+        response = client.get(prefix + "/api/detection?123")
+        assert response.status_code == 409
+        assert calls[-1].url.path == "/api/detection"
         count = len(calls)
         assert client.post(prefix + "/api/raw", json={}).status_code == 404
         assert client.get(prefix + "/api/tap").status_code == 404

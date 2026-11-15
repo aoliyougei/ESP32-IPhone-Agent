@@ -9,7 +9,7 @@ test('YOLO switches modes, aligns boxes and rejects late results', async () => {
   try {
     const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
     const errors = [], taps = [];
-    let mode = 'boxes', release, delayed;
+    let mode = 'boxes', release, delayed, detectionCalls = 0;
     const image = await page.evaluate(() => {
       const canvas = document.createElement('canvas'); canvas.width = 200; canvas.height = 100;
       return canvas.toDataURL('image/jpeg').split(',')[1];
@@ -18,13 +18,16 @@ test('YOLO switches modes, aligns boxes and rejects late results', async () => {
     await page.route('http://detect.test/**', async route => {
       const url = new URL(route.request().url());
       if (url.pathname === '/api/detection') {
+        detectionCalls++;
         if (mode === 'delay') { delayed = true; await new Promise(resolve => { release = resolve; }); }
         if (mode === 'error') return route.fulfill({ status: 503, json: { detail: 'Model missing' } });
         if (mode === 'gone') return route.fulfill({ status: 404, json: { detail: 'No live screen' } });
         return route.fulfill({ json: { image, width: 200, height: 100,
           elapsed_ms: 20, boxes: mode === 'empty' ? [] : [
-            { class_id: 0, confidence: .9, xyxy: [20, 10, 80, 80] },
-            { class_id: 1, confidence: .8, xyxy: [100, 20, 180, 90] }] } });
+            { class_id: 38, class_name: 'front', confidence: .9, xyxy: [20, 10, 80, 80] },
+            { class_id: 3, class_name: 'back', confidence: .8, xyxy: [100, 20, 180, 90] },
+            { class_id: 0, class_name: 'achievement_button', confidence: .7, xyxy: [5, 5, 15, 15] },
+            { class_id: 148, class_name: 'new_label', confidence: .6, xyxy: [30, 5, 40, 15] }] } });
       }
       if (url.pathname === '/api/frame.jpg') return route.fulfill({ contentType: 'image/jpeg', body: Buffer.from(image, 'base64') });
       if (url.pathname.startsWith('/api/')) {
@@ -42,12 +45,13 @@ test('YOLO switches modes, aligns boxes and rejects late results', async () => {
     assert.equal(await toggle.count(), 1);
     assert.equal(await toggle.getAttribute('aria-pressed'), 'false');
     await toggle.click();
-    await page.waitForFunction(() => document.querySelectorAll('#detection-overlay rect').length === 2);
+    await page.waitForFunction(() => document.querySelectorAll('#detection-overlay rect').length === 4);
     assert.match(await page.locator('#detection-overlay').textContent(), /Front 90%.*Back 80%/);
     assert.equal(await page.locator('#detection-overlay rect').first().getAttribute('stroke'), '#22c55e');
-    assert.equal(await page.locator('#detection-overlay rect').last().getAttribute('stroke'), '#f59e0b');
+    assert.equal(await page.locator('#detection-overlay rect').nth(1).getAttribute('stroke'), '#f59e0b');
     await page.locator('[data-lang="zh"]').click();
     await page.waitForFunction(() => document.getElementById('detection-overlay').textContent.includes('正面'));
+    assert.match(await page.locator('#detection-overlay').textContent(), /成就按钮.*new_label/);
     await page.locator('#grid-toggle').click();
     for (const landscape of [false, true]) {
       await page.evaluate(value => document.body.classList.toggle('landscape', value), landscape);
@@ -64,11 +68,15 @@ test('YOLO switches modes, aligns boxes and rejects late results', async () => {
     await page.waitForFunction(() => document.querySelectorAll('#detection-overlay rect').length === 0);
     mode = 'error';
     await page.waitForFunction(() => document.getElementById('detection-status').textContent.includes('Model missing'));
-    assert.equal(await page.locator('#live').getAttribute('src'), null);
-    mode = 'gone';
-    await page.waitForTimeout(400);
-    assert.equal(await page.locator('#live').getAttribute('src'), null);
+    await page.waitForFunction(() => document.getElementById('live').naturalWidth === 200);
+    assert.equal(await toggle.getAttribute('aria-pressed'), 'false');
+    assert.equal(await page.locator('#detection-overlay').isVisible(), false);
+    const callsAfterError = detectionCalls;
+    await page.waitForTimeout(700);
+    assert.equal(detectionCalls, callsAfterError);
+    assert.match(await page.locator('#detection-status').textContent(), /Model missing/);
     mode = 'delay';
+    await toggle.click();
     while (!delayed) await page.waitForTimeout(25);
     await toggle.click();
     await page.waitForFunction(() => document.getElementById('live').naturalWidth === 200);

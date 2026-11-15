@@ -9,6 +9,15 @@
 - Product name: ESP32 Agent.
 - `server/` is legacy and no longer needed.
 
+## v0.1.24
+
+- Legacy Server: accept dynamic detection class mappings, including the 148-class xyq model (`front=38`, `back=3`), instead of requiring the original two fixed IDs.
+- Return original class names in detection responses; display Chinese translations by name with raw-name fallback and stable class colors.
+- Add `HIDAGENT_YOLO_IMGSZ` (default 640; set 960 for the new xyq weights), validated as a multiple of 32 from 32 to 4096.
+- On detection failure, disable inference and resume raw preview while retaining the error; retry only after the user explicitly enables detection again.
+- Verify 106 Python tests, five frontend tests and real 148-class weight loading/blank-image CPU inference. No OCR, automatic actions, NVIDIA validation or game-image accuracy guarantee.
+- Build the CPU Server image as `v0.1.24`; Manager is unchanged. Weights are not bundled; Python package metadata remains at 0.1.20.
+
 ## v0.1.23
 
 - Legacy Server: optional YOLO front/back detection on the live phone preview, with green/orange boxes and confidence scores. Detection is off by default and does not automate clicks.

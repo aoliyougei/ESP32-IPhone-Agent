@@ -38,7 +38,7 @@ def test_detection_reuses_model_and_maps_device(monkeypatch, tmp_path, device, e
     d, model, factory = detector(monkeypatch, tmp_path, device)
     result = d.detect(jpeg())
     assert (result['width'], result['height']) == (200, 100)
-    assert result['boxes'] == [{'class_id': 0, 'confidence': 0.9, 'xyxy': [10, 20, 40, 80]}]
+    assert result['boxes'] == [{'class_id': 0, 'class_name': 'front', 'confidence': 0.9, 'xyxy': [10, 20, 40, 80]}]
     d.detect(jpeg())
     assert factory.call_count == 1
     assert model.predict.call_args.kwargs == dict(imgsz=640, conf=0.25, iou=0.7,
@@ -49,11 +49,48 @@ def test_detection_reuses_model_and_maps_device(monkeypatch, tmp_path, device, e
 def test_configuration_errors(monkeypatch, tmp_path, case):
     from hidagent.detection import DetectionError
     d, model, _ = detector(monkeypatch, tmp_path, device='bad' if case == 'invalid' else 'nvidia',
-                           cuda=case != 'cuda', names={0: 'other'} if case == 'names' else None)
+                           cuda=case != 'cuda', names={0: ''} if case == 'names' else None)
     if case == 'missing':
         d.path.unlink()
     with pytest.raises(DetectionError):
         d.detect(jpeg())
+    model.predict.assert_not_called()
+
+
+def test_dynamic_classes_and_imgsz(monkeypatch, tmp_path):
+    from hidagent.detection import Detector
+    names = {i: f'category_{i}' for i in range(148)}
+    names.update({0: 'achievement_button', 3: 'back', 38: 'front', 147: 'zhongkui_npc'})
+    d, model, _ = detector(monkeypatch, tmp_path, names=names)
+    d = Detector(d.path, imgsz='960')
+    model.predict.return_value[0].boxes.cls.tolist = lambda: [38, 3, 0, 147]
+    model.predict.return_value[0].boxes.conf.tolist = lambda: [0.9] * 4
+    model.predict.return_value[0].boxes.xyxy.tolist = lambda: [[10, 20, 40, 80]] * 4
+    result = d.detect(jpeg())
+    assert result['boxes'][0]['class_name'] == 'front'
+    assert result['boxes'][0]['class_id'] == 38
+    assert [b['class_name'] for b in result['boxes']] == ['front', 'back', 'achievement_button', 'zhongkui_npc']
+    assert model.predict.call_args.kwargs['imgsz'] == 960
+
+
+@pytest.mark.parametrize('names,task', [({}, 'detect'), ({-1: 'bad'}, 'detect'),
+                                      ({0: 123}, 'detect'), ({'0': 'front'}, 'detect'),
+                                      ({0: 'front'}, 'segment')])
+def test_invalid_model_metadata(monkeypatch, tmp_path, names, task):
+    from hidagent.detection import DetectionError
+    d, model, _ = detector(monkeypatch, tmp_path, names=names)
+    model.task = task
+    with pytest.raises(DetectionError, match='Incompatible model'):
+        d.detect(jpeg())
+    model.predict.assert_not_called()
+
+
+@pytest.mark.parametrize('size', ['bad', '0', '-32', '641', '999999'])
+def test_invalid_imgsz(monkeypatch, tmp_path, size):
+    from hidagent.detection import DetectionError, Detector
+    d, model, _ = detector(monkeypatch, tmp_path)
+    with pytest.raises(DetectionError):
+        Detector(d.path, imgsz=size).detect(jpeg())
     model.predict.assert_not_called()
 
 

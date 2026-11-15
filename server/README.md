@@ -13,12 +13,16 @@ with `prompts/`.
 
 The **YOLO detection / YOLO 检测** switch below the phone preview is off by default.
 When enabled, inference runs on the server: green boxes label **Front / 正面**,
-orange boxes label **Back / 背面**, with confidence scores. Boxes do not intercept
+orange boxes label **Back / 背面**, with confidence scores. Other model classes are
+shown with stable name-based colors. Chinese display names are mapped by raw class
+name, not ID; unknown names fall back to the original name. All detected classes
+are shown; colors are not guaranteed unique. Boxes do not intercept
 clicks or change Agent screenshots, pointer calibration or device actions.
 Each displayed image is the exact frame used for its boxes. Inference is serialized,
 busy requests are rejected rather than queued, and CPU speed determines preview
-refresh rate. Errors clear the preview and appear beside the switch; turn detection
-off to resume the ordinary live view. First use loads the model and may take longer.
+refresh rate. Detection errors clear the boxes, automatically switch detection off and resume
+the ordinary live view; the error stays beside the switch. Toggle detection back
+on explicitly after fixing the cause; there is no automatic inference retry loop. First use loads the model and may take longer.
 No automatic clicks or front/back conflict correction are performed.
 
 Build from `server/` with one optional dependency profile:
@@ -45,6 +49,8 @@ the repository-root weights and does not download any model. Configure the proce
 ```env
 HIDAGENT_YOLO_MODEL=/data/best.pt
 HIDAGENT_YOLO_DEVICE=cpu
+HIDAGENT_YOLO_IMGSZ=640
+# For the xyq 148-class model, set HIDAGENT_YOLO_IMGSZ=960.
 # Or: HIDAGENT_YOLO_DEVICE=nvidia
 ```
 
@@ -54,13 +60,18 @@ Toolkit, a GPU-enabled container configuration (e.g. `--gpus all`), and CUDA-ena
 PyTorch. A CPU-only image cannot enable CUDA just by changing this variable.
 GPU errors never silently fall back to CPU. A project `.env` alone does not inject
 variables into an existing container. Missing dependencies/weights only disable
-inference, not the normal phone controls. Model class mapping must be exactly
-`0: front, 1: back`, task `detect`. Only load trusted `.pt` files: PyTorch checkpoints
+inference, not the normal phone controls. The model must have task `detect` and a valid nonempty class-name mapping.
+Class IDs and counts may change: for example, `front=38` and `back=3` are supported.
+Restart the server after changing model files or environment variables; weights are
+loaded once and are not hot-reloaded. Only load trusted `.pt` files: PyTorch checkpoints
 can execute code. Review Ultralytics/model licensing before redistribution.
 
-Inference parameters: `imgsz=640`, `conf=0.25`, `iou=0.7`, class-aware NMS.
+Inference parameters: `imgsz=HIDAGENT_YOLO_IMGSZ` (default 640), `conf=0.25`,
+`iou=0.7`, class-aware NMS. Input size must be a multiple of 32 from 32 to 4096.
+Use 960 initially for the xyq 148-class model, matching training; benchmark CPU
+latency rather than assuming the same speed as 640.
 `GET /api/detection` returns `{image, width, height, boxes, elapsed_ms}`: image is
-base64 JPEG, boxes contain `{class_id, confidence, xyxy}` in original pixels.
+base64 JPEG, boxes contain `{class_id, class_name, confidence, xyxy}` in original pixels.
 The image is sensitive screen data, just like `/api/frame.jpg`; keep both server
 and Manager on a trusted network. Responses are not cached or saved to disk.
 No independent game-screenshot accuracy or real-device latency is guaranteed;

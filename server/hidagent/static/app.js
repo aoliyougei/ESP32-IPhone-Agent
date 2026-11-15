@@ -292,7 +292,12 @@ function drawDetections() {
   detectionOverlay.setAttribute("viewBox", `0 0 ${width} ${height}`);
   for (const box of boxes) {
     const [x1, y1, x2, y2] = box.xyxy;
-    const color = box.class_id === 0 ? "#22c55e" : "#f59e0b";
+    const name = box.class_name ?? String(box.class_id);
+    let hash = 0;
+    for (const char of name) hash = (Math.imul(hash, 31) + char.codePointAt(0)) | 0;
+    const color = name === "front" ? "#22c55e" : name === "back" ? "#f59e0b" : `hsl(${(hash >>> 0) % 360} 80% 65%)`;
+    const label = lang === "zh" ? (YOLO_LABELS_ZH[name] ?? name) :
+      name === "front" ? t("detectionFront") : name === "back" ? t("detectionBack") : name;
     const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
     for (const [key, value] of Object.entries({ x: x1, y: y1, width: x2 - x1, height: y2 - y1,
       fill: "none", stroke: color, "stroke-width": 2, "vector-effect": "non-scaling-stroke" }))
@@ -300,7 +305,7 @@ function drawDetections() {
     const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
     text.setAttribute("x", x1); text.setAttribute("y", Math.max(height * .035, y1 - height * .01));
     text.setAttribute("fill", color); text.setAttribute("font-size", height * .035);
-    text.textContent = `${t(box.class_id === 0 ? "detectionFront" : "detectionBack")} ${Math.round(box.confidence * 100)}%`;
+    text.textContent = `${label} ${Math.round(box.confidence * 100)}%`;
     detectionOverlay.append(rect, text);
   }
   positionDetections();
@@ -332,11 +337,16 @@ async function refreshLive() {
     if (epoch !== detectionEpoch) { if (url.startsWith('blob:')) URL.revokeObjectURL(url); return; }
     detectionResult = result;
     showFrame(url); drawDetections();
-    $("detection-status").textContent = result ? `${result.elapsed_ms} ms` : "";
+    if (result) $("detection-status").textContent = `${result.elapsed_ms} ms`;
   } catch (error) {
     if (epoch !== detectionEpoch) return;
     detectionResult = null; showFrame(""); drawDetections();
-    $("detection-status").textContent = detecting ? `${t("detectionError")}: ${error.message}` : "";
+    if (detecting) {
+      $("detection-status").textContent = `${t("detectionError")}: ${error.message}`;
+      detecting = false;
+      $("detection-toggle").setAttribute("aria-pressed", "false");
+      // Resume raw frames; retry inference only after an explicit toggle.
+    }
   }
   if (epoch === detectionEpoch) liveTimer = setTimeout(refreshLive, detecting ? 300 : 150);
 }

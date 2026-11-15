@@ -27,7 +27,8 @@ DEBUG = os.environ.get("HIDAGENT_DEBUG") == "1"
 detection_task = None
 
 detector = Detector(Path(os.environ.get("HIDAGENT_YOLO_MODEL", DATA_DIR / "best.pt")),
-                    os.environ.get("HIDAGENT_YOLO_DEVICE", "cpu"))
+                    os.environ.get("HIDAGENT_YOLO_DEVICE", "cpu"),
+                    os.environ.get("HIDAGENT_YOLO_IMGSZ", "640"))
 device = Device()
 screen = Screen(os.environ.get("AIRPLAY_NAME", "iPhone Agent"))
 phone = Phone(device, DATA_DIR / "calibration.json", screen,

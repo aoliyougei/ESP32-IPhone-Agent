@@ -20,8 +20,8 @@ class DetectionBusy(DetectionError):
 
 
 class Detector:
-    def __init__(self, path: Path, device: str = "cpu"):
-        self.path, self.device = path, device
+    def __init__(self, path: Path, device: str = "cpu", imgsz: str | int = 640):
+        self.path, self.device, self.imgsz = path, device, imgsz
         self.lock = threading.Lock()
         self.model = None
 
@@ -31,6 +31,12 @@ class Detector:
         try:
             if self.device not in {"cpu", "nvidia"}:
                 raise DetectionError("HIDAGENT_YOLO_DEVICE must be cpu or nvidia")
+            try:
+                size = int(self.imgsz)
+            except (TypeError, ValueError) as e:
+                raise DetectionError("HIDAGENT_YOLO_IMGSZ must be a multiple of 32 between 32 and 4096") from e
+            if size < 32 or size > 4096 or size % 32:
+                raise DetectionError("HIDAGENT_YOLO_IMGSZ must be a multiple of 32 between 32 and 4096")
             if self.model is None:
                 if not self.path.is_file():
                     raise DetectionError("Model file missing; configure HIDAGENT_YOLO_MODEL")
@@ -42,15 +48,19 @@ class Detector:
                 if self.device == "nvidia" and not torch.cuda.is_available():
                     raise DetectionError("NVIDIA unavailable; check CUDA PyTorch and container GPU access")
                 model = YOLO(str(self.path))
-                if model.task != "detect" or dict(model.names) != {0: "front", 1: "back"}:
-                    raise DetectionError("Incompatible model; expected detection classes 0:front, 1:back")
+                names = model.names
+                if (model.task != "detect" or not isinstance(names, dict) or not names
+                        or any(type(k) is not int or k < 0 or not isinstance(v, str) or not v.strip()
+                               for k, v in names.items())):
+                    raise DetectionError("Incompatible model; expected detect task with valid class names")
                 self.model = model
             started = time.perf_counter()
             with Image.open(io.BytesIO(frame)) as source:
                 image = source.convert("RGB")
-            result = self.model.predict(image, imgsz=640, conf=0.25, iou=0.7, agnostic_nms=False,
+            result = self.model.predict(image, imgsz=size, conf=0.25, iou=0.7, agnostic_nms=False,
                                         device="cuda:0" if self.device == "nvidia" else "cpu", verbose=False)[0]
-            boxes = [{"class_id": int(cls), "confidence": float(conf), "xyxy": xyxy}
+            boxes = [{"class_id": int(cls), "class_name": self.model.names[int(cls)],
+                      "confidence": float(conf), "xyxy": xyxy}
                      for cls, conf, xyxy in zip(result.boxes.cls.tolist(), result.boxes.conf.tolist(),
                                                result.boxes.xyxy.tolist(), strict=True)]
             return {"width": image.width, "height": image.height, "boxes": boxes,

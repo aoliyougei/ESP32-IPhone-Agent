@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { PhoneClient } from './client.mjs';
+import { PhoneClient } from './client.ts';
 
 async function server(run) {
   const requests = [];
@@ -54,7 +54,12 @@ test('blocks disconnected, uncalibrated or internally controlled phones; stop is
 }));
 
 test('does not retry failed actions or follow redirects', () => server(async (client, requests) => {
-  await assert.rejects(client.action({ action: 'type', text: 'hello' }), /HTTP 409/);
+  await assert.rejects(client.action({ action: 'type', text: 'hello' }), error => {
+    assert.match(error.message, /HTTP 409/);
+    assert.ok(error.cause instanceof Error);
+    assert.equal(error.cause.message, 'HTTP 409');
+    return true;
+  });
   assert.equal(requests.filter(r => r.path === '/api/type').length, 1);
   await assert.rejects(client.action({ action: 'back' }));
   assert.equal(requests.some(r => r.path === '/api/home'), false);

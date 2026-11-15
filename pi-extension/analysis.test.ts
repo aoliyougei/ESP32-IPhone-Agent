@@ -16,6 +16,11 @@ test('popup model setting persists, preserves Server config, analyzes the same J
   let requests = 0, analyses = 0, responseError = false;
   let expectedPrompt: string | undefined;
   let branchReads = 0;
+  let expectDetection = false;
+  const paths: string[] = [];
+  const detection = { image: image.toString('base64'), width: 1920, height: 888,
+    boxes: [{ class_id: 77, class_name: 'map_entry', confidence: 0.93, xyxy: [10, 10, 250, 70] }],
+    ocr: { enabled: false, regions: [], error: 'OCR offline', skipped: 0, elapsed_ms: 0 }, elapsed_ms: 150 };
   const context = {
     modelRegistry: {
       getAvailable: () => [visual, textOnly],
@@ -26,6 +31,11 @@ test('popup model setting persists, preserves Server config, analyzes the same J
         assert.equal(model, visual);
         const text = prompt.messages[0].content[0].text;
         assert.ok(text.includes(expectedPrompt || '打开微信'));
+        if (expectDetection) {
+          assert.ok(text.includes('map_entry'));
+          assert.ok(text.includes('OCR offline'));
+          assert.equal(text.includes(detection.image), false);
+        }
         if (expectedPrompt) assert.equal(text.includes('打开微信'), false);
         assert.ok(prompt.systemPrompt.includes('normalized 0–1'));
         assert.ok(prompt.systemPrompt.includes('Only analyze'));
@@ -62,7 +72,13 @@ test('popup model setting persists, preserves Server config, analyzes the same J
   try {
     mkdirSync(join(dir, '.pi'));
     writeFileSync(path, JSON.stringify({ serverUrl: 'http://server.example:8890' }));
-    globalThis.fetch = async () => { requests++; return new Response(image, { headers: { 'content-type': 'image/jpeg' } }); };
+    globalThis.fetch = async url => {
+      requests++;
+      const path = new URL(String(url)).pathname;
+      paths.push(path);
+      return path === '/api/detection' ? Response.json(detection)
+        : new Response(image, { headers: { 'content-type': 'image/jpeg' } });
+    };
     const app = load();
     await app.menu(undefined);
     assert.equal(JSON.parse(readFileSync(path, 'utf8')).analysisModel, undefined);
@@ -77,6 +93,18 @@ test('popup model setting persists, preserves Server config, analyzes the same J
     assert.equal(result.content[1].data, image.toString('base64'));
     assert.equal(result.usage, usage);
     await app.screenshot({ analysis: 'context' });
+    const pathsBeforeDetection = paths.length;
+    const detectionOnly = await app.screenshot({ source: 'detection', analysis: 'none' });
+    assert.deepEqual(paths.slice(pathsBeforeDetection), ['/api/detection']);
+    assert.ok(detectionOnly.content[0].text.includes('map_entry'));
+    assert.equal(detectionOnly.details.detection.boxes[0].center.x, 130 / 1920);
+    assert.equal(detectionOnly.content[1].data, image.toString('base64'));
+    expectDetection = true;
+    expectedPrompt = '结合检测定位';
+    await app.screenshot({ source: 'detection', prompt: expectedPrompt });
+    expectedPrompt = undefined;
+    expectDetection = false;
+    assert.equal(paths.some(path => path === '/api/tap'), false);
     const reads = branchReads;
     expectedPrompt = '找到开始按钮';
     await app.screenshot({ analysis: 'prompt', prompt: expectedPrompt });
@@ -91,7 +119,7 @@ test('popup model setting persists, preserves Server config, analyzes the same J
     const requestsBeforeInvalid = requests;
     for (const params of [{ analysis: 'prompt' }, { prompt: '' }, { prompt: '   ' },
       { analysis: 'none', prompt: 'target' }, { analysis: 'context', prompt: 'target' },
-      { analysis: 'invalid' }, { prompt: 123 }]) {
+      { analysis: 'invalid' }, { prompt: 123 }, { source: 'invalid' }]) {
       await assert.rejects(app.screenshot(params));
     }
     assert.equal(requests, requestsBeforeInvalid);

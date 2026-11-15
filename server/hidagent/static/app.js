@@ -284,7 +284,35 @@ function positionDetections() {
   Object.assign(detectionOverlay.style, { left: `${r.left - parent.left - live.parentElement.clientLeft}px`,
     top: `${r.top - parent.top - live.parentElement.clientTop}px`, width: `${r.width}px`, height: `${r.height}px` });
 }
+function drawOCR() {
+  const result = detecting ? detectionResult?.ocr : null;
+  $("ocr-results").hidden = !result;
+  for (const [name, id] of [["map_entry", "ocr-map"], ["quest_panel", "ocr-quest"], ["dialog_option", "ocr-dialog"]]) {
+    const target = $(id); target.replaceChildren();
+    if (!result) continue;
+    const regions = result.regions.filter(region => region.class_name === name);
+    if (name === "dialog_option") regions.sort((a, b) => {
+      const x = a.source_xyxy ?? a.xyxy, y = b.source_xyxy ?? b.xyxy;
+      return x[1] - y[1] || x[0] - y[0];
+    });
+    if (!regions.length) target.textContent = result.enabled ? t("ocrNoRegion") : t("ocrDisabled");
+    for (const region of regions) {
+      const group = document.createElement("div"); group.className = "ocr-region";
+      if (region.error) group.textContent = `${t("ocrError")}: ${region.error}`;
+      else if (!region.lines.length) group.textContent = t("ocrEmpty");
+      else for (const line of region.lines) {
+        const row = document.createElement("p");
+        row.textContent = `${line.text} (${Math.round(line.confidence * 100)}%)`;
+        group.append(row);
+      }
+      target.append(group);
+    }
+  }
+  $("ocr-status").textContent = result?.error ? `${t("ocrError")}: ${result.error}` :
+    result?.skipped ? `${t("ocrSkipped")}: ${result.skipped}` : "";
+}
 function drawDetections() {
+  drawOCR();
   detectionOverlay.replaceChildren();
   detectionOverlay.toggleAttribute("hidden", !detecting || !detectionResult || !live.hasAttribute("src"));
   if (detectionOverlay.hasAttribute("hidden")) return;

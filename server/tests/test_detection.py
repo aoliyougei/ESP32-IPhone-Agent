@@ -148,10 +148,14 @@ def test_api_same_frame_and_errors(monkeypatch):
     monkeypatch.setattr(api, 'screen', screen)
     mock = Mock(return_value={'width': 200, 'height': 100, 'boxes': [], 'elapsed_ms': 1})
     monkeypatch.setattr(api.detector, 'detect', mock)
+    ocr = Mock(return_value={'regions': [{'class_name': 'map_entry', 'lines': []}]})
+    monkeypatch.setattr(api.region_ocr, 'read', ocr)
     response = asyncio.run(api.detection())
     payload = json.loads(response.body)
     assert base64.b64decode(payload['image']) == frame
     mock.assert_called_once_with(frame)
+    ocr.assert_called_once_with(frame, [])
+    assert payload['ocr']['regions'][0]['class_name'] == 'map_entry'
     assert response.headers['cache-control'] == 'no-store'
     for error, status in [(DetectionBusy(), 409), (DetectionError('test'), 503)]:
         mock.side_effect = error

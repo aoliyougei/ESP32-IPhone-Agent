@@ -17,6 +17,7 @@ from .debug import Trace
 from .detection import DetectionBusy, DetectionError, Detector
 from .device import Device, DeviceError
 from .llm import LLM
+from .ocr import RegionOCR
 from .phone import Phone
 from .screen import Screen
 
@@ -25,6 +26,7 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 DEBUG = os.environ.get("HIDAGENT_DEBUG") == "1"
 
 detection_task = None
+region_ocr = RegionOCR(enabled=os.environ.get("HIDAGENT_OCR", "1") == "1")
 
 detector = Detector(Path(os.environ.get("HIDAGENT_YOLO_MODEL", DATA_DIR / "best.pt")),
                     os.environ.get("HIDAGENT_YOLO_DEVICE", "cpu"),
@@ -126,6 +128,7 @@ async def detection():
             raise HTTPException(409, str(e)) from e
         except DetectionError as e:
             raise HTTPException(503, str(e)) from e
+        result["ocr"] = region_ocr.read(shot, result.get("boxes", []))
         if not screen.live:
             raise HTTPException(404, "No live screen")
         return JSONResponse({**result, "image": base64.b64encode(shot).decode("ascii")},

@@ -193,3 +193,10 @@ body.landscape .phone .manual { flex-shrink: 0; }
 .detection-controls { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin: .5rem 0; }
 #detection-toggle[aria-pressed="true"] { border-color: #22c55e; }
 #detection-status { font-size: .8rem; overflow-wrap: anywhere; }
+
+.ocr-results { margin: .5rem 0; padding: .6rem; border: 1px solid #ddd; border-radius: .5rem; font-size: .85rem; text-align: left; overflow-wrap: anywhere; }
+.ocr-results[hidden] { display: none; }
+.ocr-results h3 { margin: .4rem 0; font-size: .9rem; }
+.ocr-region { margin-bottom: .5rem; white-space: pre-wrap; }
+.ocr-region p { margin: .2rem 0; }
+#ocr-status { margin: .3rem 0; }

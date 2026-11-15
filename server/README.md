@@ -36,7 +36,7 @@ Build from `server/` with one optional dependency profile:
 
 The default `YOLO_RUNTIME=none` retains the original lightweight dependencies.
 For an existing Python environment, install PyTorch 2.5.1 / torchvision 0.20.1
-from the appropriate CPU or CUDA index, then install `.[yolo]`. The extra pins
+from the appropriate CPU or CUDA index, then install `.[yolo,ocr]`. The extra pins
 Ultralytics 8.3.40 and NumPy <2 to match the delivered model's training environment.
 The optional dependencies are installed via pip; the existing base-only `uv.lock`
 is not a lockfile for this extra.
@@ -76,6 +76,64 @@ The image is sensitive screen data, just like `/api/frame.jpg`; keep both server
 and Manager on a trusted network. Responses are not cached or saved to disk.
 No independent game-screenshot accuracy or real-device latency is guaranteed;
 training-set scores in `yolov8n/xyq-model-integration.md` are not deployment metrics.
+
+## CPU OCR: map, task tracker and NPC dialogue options
+
+When YOLO detection is enabled, RapidOCR reads `map_entry` (map name and
+coordinates at the top left), `quest_panel` (the right-side task tracker), and
+**every detected `dialog_option`** (NPC dialogue option). `dialog_close_button`,
+NPC body classes, `current_task_panel` and all other classes are excluded.
+Dialogue body text outside an option box is not recognized. OCR runs on the exact
+original JPEG used for detection, not the 960/640 resized tensor or the annotated
+preview. Crops have a four-pixel margin clamped to frame bounds. Text detection,
+direction classification and recognition run on each crop to support multiple lines.
+
+The three panels below the preview show raw recognized lines and recognition scores.
+Dialogue options appear top-to-bottom, with left-to-right ordering for equal top
+coordinates, independently of YOLO confidence ordering. Each option remains a
+separate region, including empty/error results.
+Coordinates are not parsed into X/Y values. Recognition scores are not calibrated
+correctness probabilities; high-score characters can still be wrong. OCR does not
+click, submit tasks or change Agent prompts. Missing regions, no recognized text,
+and OCR errors have distinct display states. Results clear on missing targets,
+detection disable/failure and frame changes; no old-frame OCR cache is used.
+
+`YOLO_RUNTIME=cpu` and `YOLO_RUNTIME=nvidia` Docker builds now include the `ocr`
+extra: `rapidocr-onnxruntime==1.4.4` and `onnxruntime==1.20.1`. This deliberately
+uses the bundled-model RapidOCR 1.x API, not the newer `rapidocr` API. The package
+includes Chinese/English ONNX models; startup does not download model files.
+For non-Docker installations install `.[yolo,ocr]` after the appropriate PyTorch
+build. The base `uv.lock` does not cover these optional pip-installed extras.
+Models/source licensing must be reviewed before redistribution.
+
+OCR always uses **CPUExecutionProvider**, even if YOLO uses NVIDIA. Two intra-op
+threads and one inter-op thread are configured per engine. The engine loads lazily
+when a target is first detected and is reused inside the serialized detection
+worker. `HIDAGENT_OCR=1` (default) enables it; `HIDAGENT_OCR=0` disables it while
+retaining YOLO. Restart after changing this variable or repairing a failed OCR
+initialization: initialization failure is cached to avoid repeated expensive loads.
+The default lightweight `YOLO_RUNTIME=none` image still has no inference extras.
+
+All valid target OCR regions returned by YOLO are processed in its output order;
+the previous eight-region OCR cap has been removed so dialogue options are not
+truncated. Invalid/out-of-frame regions are skipped and the skipped count is
+displayed. YOLO's own detection limits still apply. Many options increase CPU
+latency; no extra frame queue is introduced.
+No screenshots or recognized text are intentionally saved or uploaded. Errors log
+stack traces server-side, not the recognized content. OCR errors do not fail YOLO
+or the raw preview; the API returns them inside `ocr`.
+
+`GET /api/detection` adds an `ocr` object with `enabled`, `regions`, `error`,
+`skipped`, and `elapsed_ms`. Each region has `class_name`, the original YOLO box `source_xyxy`, the clamped crop `xyxy`,
+`lines: [{text, confidence}]` and `error`. Line order is the OCR engine's reading
+order; no document-layout semantics are inferred. Detection `elapsed_ms` remains
+YOLO inference timing; OCR has its own elapsed time, including first initialization.
+The existing Manager detection proxy requires no new route.
+
+OCR increases detection-mode preview latency. CPU synthetic Chinese samples verify
+execution, not real-game accuracy: one test misread 钟馗 as 钟道 despite a high
+score. Validate actual map/task screenshots, small fonts, compression and scrolling
+before relying on the text. No game-image accuracy or refresh-rate guarantee.
 
 ## Web layout
 

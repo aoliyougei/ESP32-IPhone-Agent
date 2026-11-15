@@ -55,6 +55,9 @@ const YOLO_LABELS_ZH = {
 };
 const I18N = {
   en: {
+    ocrMap: 'Map information · CPU OCR', ocrQuest: 'Task text · CPU OCR', ocrDialog: 'Dialogue options · CPU OCR',
+    ocrNoRegion: 'Region not detected', ocrEmpty: 'No text recognized', ocrDisabled: 'OCR disabled',
+    ocrError: 'OCR failed', ocrSkipped: 'Skipped OCR regions',
     detectionToggle: "YOLO detection", detectionLoading: "Detecting…", detectionError: "Detection failed",
     detectionFront: "Front", detectionBack: "Back",
     calibrateManual: "Manual calibration", calCancel: "Cancel calibration",
@@ -83,6 +86,9 @@ const I18N = {
       "Open Settings and go to Wi-Fi", "Open Notes and write \"hello\""],
   },
   zh: {
+    ocrMap: '地图信息 · CPU 文字识别', ocrQuest: '任务文字 · CPU 文字识别', ocrDialog: '对话选项 · CPU 文字识别',
+    ocrNoRegion: '未检测到对应区域', ocrEmpty: '未识别到文字', ocrDisabled: '文字识别已禁用',
+    ocrError: '文字识别失败', ocrSkipped: '跳过的文字识别区域',
     detectionToggle: "YOLO 检测", detectionLoading: "检测中…", detectionError: "检测失败",
     detectionFront: "正面", detectionBack: "背面",
     calibrateManual: "手动校准", calCancel: "取消校准",

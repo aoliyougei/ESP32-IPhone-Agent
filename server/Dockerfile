@@ -16,7 +16,7 @@ RUN case "$YOLO_RUNTIME" in \
         if [ "$YOLO_RUNTIME" = cpu ]; then TORCH_INDEX=cpu; else TORCH_INDEX=cu124; fi; \
         pip install --no-cache-dir torch==2.5.1 torchvision==0.20.1 \
           --index-url "https://download.pytorch.org/whl/$TORCH_INDEX" \
-        && pip install --no-cache-dir '.[yolo]' ;; \
+        && pip install --no-cache-dir '.[yolo,ocr]' ;; \
       *) echo 'YOLO_RUNTIME must be none, cpu or nvidia' >&2; exit 1 ;; \
     esac
 ENV HIDAGENT_YOLO_DEVICE=cpu

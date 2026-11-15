@@ -9,6 +9,15 @@
 - Product name: ESP32 Agent.
 - `server/` is legacy and no longer needed.
 
+## v0.1.27
+
+- Legacy Server: add CPU-only RapidOCR reading of map_entry, quest_panel and every valid dialog_option region from the same original YOLO frame.
+- Show map information, task text and NPC dialogue options with raw lines and recognition scores. Dialogue options are displayed top-to-bottom; original and padded crop coordinates are exposed via the API.
+- Bundle Chinese/English ONNX models in YOLO-enabled Docker builds; HIDAGENT_OCR=0 disables OCR. No runtime model download is required.
+- Keep OCR errors separate from YOLO failures, reuse the engine, and remove the eight-region OCR cap so dialogue options are not truncated.
+- Validate 113 Python tests and five frontend tests; real game accuracy is not guaranteed. No automatic clicks or coordinate parsing. Manager is unchanged.
+- Publish CPU Server images under v0.1.27 and test. YOLO weights are not bundled; package metadata remains 0.1.20.
+
 ## v0.1.24
 
 - Legacy Server: accept dynamic detection class mappings, including the 148-class xyq model (`front=38`, `back=3`), instead of requiring the original two fixed IDs.

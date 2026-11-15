@@ -1,6 +1,6 @@
 import { Type } from "@earendil-works/pi-ai";
 import { buildSessionContext, convertToLlm, serializeConversation, defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { PhoneClient } from "./client.mjs";
+import { PhoneClient } from "./client.ts";
 import { mkdirSync, readFileSync, writeFileSync, renameSync, rmSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
@@ -147,6 +147,10 @@ export default function (pi: ExtensionAPI) {
         throw new Error(`Screenshot analysis model unavailable: ${selected.provider}/${selected.id}. Configure /esp32-iphone-server`);
       }
       const phone = client();
+      if (params.source === "detection" && typeof phone.detection !== "function") {
+        throw new Error("Phone client runtime incompatibility: detection method is unavailable. Update the entire plugin and reload; if it persists, restart the session-hosting Pi RPC backend once, then open a new session. No detection request was sent.",
+          { cause: new TypeError("phone.detection is not a function") });
+      }
       const detected = params.source === "detection" ? await phone.detection(signal) : undefined;
       const image = detected ? detected.image : await phone.screenshot(signal);
       const detection = detected?.detection;

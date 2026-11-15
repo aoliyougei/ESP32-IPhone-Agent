@@ -10,7 +10,7 @@
 ## 文件
 
 - `index.ts`：读取项目连接配置、注册 Pi 工具、配置菜单与本扩展内的动作互斥。
-- `client.mjs`：受限 HTTP 客户端、输入校验、状态检查、超时和响应大小限制。
+- `client.ts`：受限 HTTP 客户端、输入校验、状态检查、超时和响应大小限制。
 - `*.test.*`：不连接真实手机的测试。
 
 ## 从 GitHub 安装（推荐）
@@ -34,6 +34,29 @@ pi update --extensions
 若来源固定到旧标签（例如 `@v0.1.7`）或提交，更新不会自动切到新版，需要更换安装来源。
 不要同时通过 Git package 和复制到全局 extensions 目录安装，以免重复加载。
 
+## 升级与同进程 reload
+
+客户端已由 `client.mjs` 迁移到 `client.ts`，以便 Pi/Jiti 重新转译相对依赖，避免入口刷新后仍引用旧的原生 ESM 客户端。
+请更新整个插件目录，不能只更新入口。项目 `.pi/phone.json` 不受影响。
+
+**从已加载旧 `.mjs` 的长驻 RPC 进程升级时，建议一次性重启实际承载会话的 Pi RPC 后端，再新建会话。**
+重复安装、刷新网页或会话 `/reload` 不能保证清除 Node 原生 ESM 缓存。重启应由操作者确认后执行，插件不自动重启。
+后续 `.ts` 依赖修改已在同进程 Jiti reload 测试中通过，但这不是对所有 Pi/Web/SDK 宿主的通用热更新保证。
+
+缺少 detection 方法时，工具会报告运行时不兼容及恢复建议，原始 TypeError 保留在 `cause`，不会发送请求或重试。
+HTTP 和响应结构错误不被归为缓存问题。正常结果不输出 PID、hostname 或内部模块路径。
+目标环境若保留过 `esp32-detection-runtime-v1` 临时诊断，应更新完整目录以移除；仓库正式实现没有该诊断。
+
+### 上游复现与建议
+
+`reload.test.mjs` 的负面对照是最小复现：临时 `index.ts` 导入 `client.mjs`，加载后改写两者，
+同一 Node 进程用新的 Jiti 实例和 `{ moduleCache:false, fsCache:false }` 再次导入。
+入口变为新版，但原生 `.mjs` 仍为旧版；将依赖换为 `.ts` 后，同样操作可刷新依赖。
+该测试不连接设备，固定路径导入，不使用随机 query 参数。
+
+Pi/Jiti 上游可考虑在 reload 生命周期中对扩展依赖强制走可失效的转译路径，或明确提供原生 ESM 的隔离/进程重建策略。
+仅清空 Pi 入口缓存或 Jiti 磁盘转换缓存不能失效 Node 原生 ESM 依赖；本插件不修改宿主加载器。
+
 ## 手动加载（替代方式）
 
 可以直接从任意目录显式加载，不必复制到全局扩展目录：
@@ -42,7 +65,7 @@ pi update --extensions
 pi --extension /absolute/path/ESP32-IPhone-Agent/pi-extension/index.ts
 ```
 
-不要在 Pi 的项目或全局 extensions 目录只复制 `index.ts`；它需要同目录的 `client.mjs`。
+不要在 Pi 的项目或全局 extensions 目录只复制 `index.ts`；它需要同目录的 `client.ts`。
 如果要持久安装，手动将**整个目录**复制到 `~/.pi/agent/extensions/iphone-agent/`。
 Pi 提供官方包导入；实际加载不需要在本目录执行 npm install，也不需要构建。
 
@@ -231,12 +254,13 @@ HTTP 请求 30 秒超时；JPEG 上限 8 MiB，普通 JSON 上限 256 KiB。
 ## 开发检查（仅在执行容器中）
 
 ```sh
-node --test client.test.mjs detection.test.mjs
 # 以下依赖仅安装在开发容器，不用于安装此扩展
 npm install --no-save @earendil-works/pi-coding-agent@1.2.0 @earendil-works/pi-ai@1.2.0 \
-  @earendil-works/pi-agent-core@1.2.0 @earendil-works/pi-tui@1.2.0 typescript tsx
-npx tsx --test *.test.ts
-node --test package.test.mjs
+  @earendil-works/pi-agent-core@1.2.0 @earendil-works/pi-tui@1.2.0 jiti@2.6.1 typescript tsx
+# 加载器回归用原生 Node，避免 tsx 改变 Jiti/ESM 加载路径
+node --test reload.test.mjs runtime-compatibility.test.mjs
+# mjs 客户端测试现在导入 TS，通过 tsx 执行
+npx tsx --test client.test.mjs detection.test.mjs package.test.mjs *.test.ts
 npx tsc --noEmit --allowJs --allowImportingTsExtensions --module nodenext \
   --moduleResolution nodenext --target es2022 --skipLibCheck index.ts *.test.ts
 ```

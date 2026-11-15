@@ -1,6 +1,7 @@
 // HTTP bridge only: no model calls, raw board commands, redirects or automatic retries.
 export class PhoneClient {
-  constructor(baseUrl) {
+  origin: string;
+  constructor(baseUrl: string) {
     const url = new URL(baseUrl);
     if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password
         || url.search || url.hash || url.pathname !== '/') {
@@ -9,7 +10,7 @@ export class PhoneClient {
     this.origin = url.origin;
   }
 
-  async request(path, body, signal, image = false, limit = image ? 8 * 1024 * 1024 : 256 * 1024) {
+  async request(path: string, body: unknown, signal?: AbortSignal, image = false, limit = image ? 8 * 1024 * 1024 : 256 * 1024) {
     const timeout = AbortSignal.timeout(30_000);
     const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
     try {
@@ -27,6 +28,7 @@ export class PhoneClient {
         await response.body?.cancel();
         throw new Error('Expected a JPEG screenshot');
       }
+      if (!response.body) throw new Error('Server response has no body');
       const chunks = [];
       let size = 0;
       for await (const chunk of response.body) {
@@ -43,28 +45,28 @@ export class PhoneClient {
       }
       return JSON.parse(data.toString('utf8'));
     } catch (error) {
-      throw new Error(`${path}: ${error.message}. No automatic retry; an interrupted action may already have executed.`);
+      throw new Error(`${path}: ${error instanceof Error ? error.message : String(error)}. No automatic retry; an interrupted action may already have executed.`, { cause: error });
     }
   }
 
-  status(signal) { return this.request('/api/status', undefined, signal); }
-  screenshot(signal) { return this.request('/api/frame.jpg', undefined, signal, true); }
+  status(signal?: AbortSignal) { return this.request('/api/status', undefined, signal); }
+  async screenshot(signal?: AbortSignal): Promise<Buffer> { return this.request('/api/frame.jpg', undefined, signal, true); }
 
-  async detection(signal) {
+  async detection(signal?: AbortSignal) {
     const data = await this.request('/api/detection', undefined, signal, false, 12 * 1024 * 1024);
     const invalid = () => { throw new Error('/api/detection: Invalid detection response'); };
-    const score = value => Number.isFinite(value) && value >= 0 && value <= 1;
-    const error = value => value === null || typeof value === 'string';
+    const score = (value: number) => Number.isFinite(value) && value >= 0 && value <= 1;
+    const error = (value: unknown) => value === null || typeof value === 'string';
     if (!data || !Number.isSafeInteger(data.width) || data.width <= 0
         || !Number.isSafeInteger(data.height) || data.height <= 0
         || typeof data.image !== 'string' || !Array.isArray(data.boxes)) invalid();
-    const box = value => Array.isArray(value) && value.length === 4 && value.every(Number.isFinite)
+    const box = (value: unknown) => Array.isArray(value) && value.length === 4 && value.every(Number.isFinite)
       && value[0] >= 0 && value[1] >= 0 && value[2] > value[0] && value[3] > value[1]
       && value[2] <= data.width && value[3] <= data.height;
     const image = Buffer.from(data.image, 'base64');
     if (!image.length || image.length > 8 * 1024 * 1024 || image.toString('base64') !== data.image
         || image[0] !== 255 || image[1] !== 216) throw new Error('/api/detection: Invalid JPEG image');
-    const boxes = data.boxes.map(item => {
+    const boxes = data.boxes.map((item: any) => {
       if (!item || !Number.isSafeInteger(item.class_id) || item.class_id < 0
           || typeof item.class_name !== 'string' || !score(item.confidence) || !box(item.xyxy)) invalid();
       return { class_id: item.class_id, class_name: item.class_name, confidence: item.confidence, xyxy: item.xyxy,
@@ -77,11 +79,11 @@ export class PhoneClient {
       if (!value || typeof value.enabled !== 'boolean' || !Array.isArray(value.regions) || !error(value.error)
           || !Number.isSafeInteger(value.skipped) || value.skipped < 0) invalid();
       ocr = { enabled: value.enabled, error: value.error, skipped: value.skipped, elapsed_ms: value.elapsed_ms,
-        regions: value.regions.map(region => {
+        regions: value.regions.map((region: any) => {
           if (!region || typeof region.class_name !== 'string' || !box(region.xyxy)
               || !Array.isArray(region.lines) || !error(region.error)) invalid();
           return { class_name: region.class_name, xyxy: region.xyxy, error: region.error,
-            lines: region.lines.map(line => {
+            lines: region.lines.map((line: any) => {
               if (!line || typeof line.text !== 'string' || !score(line.confidence)) invalid();
               return { text: line.text, confidence: line.confidence };
             }) };
@@ -92,8 +94,8 @@ export class PhoneClient {
     return { image, detection };
   }
 
-  async action(args, signal) {
-    const coordinate = (key) => {
+  async action(args: { action: string; [key: string]: any }, signal?: AbortSignal) {
+    const coordinate = (key: string) => {
       const value = args[key];
       if (!Number.isFinite(value) || value < 0 || value > 1) throw new Error(`${key} must be between 0 and 1`);
       return value;

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { PhoneClient } from './client.mjs';
+import { PhoneClient } from './client.ts';
 
 const fixture = () => ({
   image: Buffer.from([255, 216, 255, 217]).toString('base64'), width: 1920, height: 888,

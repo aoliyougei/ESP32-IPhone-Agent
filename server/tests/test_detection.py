@@ -23,7 +23,7 @@ def detector(monkeypatch, tmp_path, device='cpu', names=None, cuda=True):
     model.names = names if names is not None else {0: 'front', 1: 'back'}
     model.task = 'detect'
     model.predict.return_value = [SimpleNamespace(boxes=SimpleNamespace(
-        xyxy=Mock(tolist=lambda: [[10, 20, 40, 80]]),
+        xyxy=Mock(tolist=lambda: [[10, 70, 40, 130]]),
         cls=Mock(tolist=lambda: [0]), conf=Mock(tolist=lambda: [0.9])))]
     factory = Mock(return_value=model)
     monkeypatch.setitem(sys.modules, 'ultralytics', SimpleNamespace(YOLO=factory))
@@ -41,7 +41,7 @@ def test_detection_reuses_model_and_maps_device(monkeypatch, tmp_path, device, e
     assert result['boxes'] == [{'class_id': 0, 'class_name': 'front', 'confidence': 0.9, 'xyxy': [10, 20, 40, 80]}]
     d.detect(jpeg())
     assert factory.call_count == 1
-    assert model.predict.call_args.kwargs == dict(imgsz=640, conf=0.25, iou=0.7,
+    assert model.predict.call_args.kwargs == dict(imgsz=960, conf=0.25, iou=0.7,
                                                   agnostic_nms=False, device=expected, verbose=False)
 
 
@@ -65,7 +65,7 @@ def test_dynamic_classes_and_imgsz(monkeypatch, tmp_path):
     d = Detector(d.path, imgsz='960')
     model.predict.return_value[0].boxes.cls.tolist = lambda: [38, 3, 0, 147]
     model.predict.return_value[0].boxes.conf.tolist = lambda: [0.9] * 4
-    model.predict.return_value[0].boxes.xyxy.tolist = lambda: [[10, 20, 40, 80]] * 4
+    model.predict.return_value[0].boxes.xyxy.tolist = lambda: [[10, 70, 40, 130]] * 4
     result = d.detect(jpeg())
     assert result['boxes'][0]['class_name'] == 'front'
     assert result['boxes'][0]['class_id'] == 38
@@ -92,6 +92,36 @@ def test_invalid_imgsz(monkeypatch, tmp_path, size):
     with pytest.raises(DetectionError):
         Detector(d.path, imgsz=size).detect(jpeg())
     model.predict.assert_not_called()
+
+
+@pytest.mark.parametrize('size', [(201, 100), (100, 201), (100, 100)])
+def test_square_padding_and_original_coordinates(monkeypatch, tmp_path, size):
+    d, model, _ = detector(monkeypatch, tmp_path, names={77: 'map_entry'})
+    width, height = size
+    side = max(size)
+    left, top = (side - width) // 2, (side - height) // 2
+    model.predict.return_value[0].boxes.cls.tolist = lambda: [77, 77, 77]
+    model.predict.return_value[0].boxes.conf.tolist = lambda: [.9, .8, .7]
+    model.predict.return_value[0].boxes.xyxy.tolist = lambda: [
+        [left + 10, top + 20, left + 40, top + 80],
+        [left - 10, top - 10, left + width + 10, top + height + 10],
+        [-20, -20, -10, -10]]
+    out = io.BytesIO()
+    Image.new('RGB', size, (200, 10, 30)).save(out, 'PNG')
+    result = d.detect(out.getvalue())
+    padded = model.predict.call_args.args[0]
+    assert padded.size == (side, side)
+    assert padded.mode == 'RGB'
+    assert padded.getpixel((left, top)) == (200, 10, 30)
+    if side > height:
+        assert padded.getpixel((0, 0)) == (114, 114, 114)
+        assert padded.getpixel((side - 1, side - 1)) == (114, 114, 114)
+    if side > width:
+        assert padded.getpixel((0, 0)) == (114, 114, 114)
+        assert padded.getpixel((side - 1, side - 1)) == (114, 114, 114)
+    assert (result['width'], result['height']) == size
+    assert [b['xyxy'] for b in result['boxes']] == [[10, 20, 40, 80], [0, 0, width, height]]
+    assert all(b['class_id'] == 77 and b['class_name'] == 'map_entry' for b in result['boxes'])
 
 
 def test_busy_and_retry_after_failure(monkeypatch, tmp_path):

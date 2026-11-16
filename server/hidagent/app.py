@@ -30,7 +30,7 @@ region_ocr = RegionOCR(enabled=os.environ.get("HIDAGENT_OCR", "1") == "1")
 
 detector = Detector(Path(os.environ.get("HIDAGENT_YOLO_MODEL", DATA_DIR / "best.pt")),
                     os.environ.get("HIDAGENT_YOLO_DEVICE", "cpu"),
-                    os.environ.get("HIDAGENT_YOLO_IMGSZ", "640"))
+                    os.environ.get("HIDAGENT_YOLO_IMGSZ", "960"))
 device = Device()
 screen = Screen(os.environ.get("AIRPLAY_NAME", "iPhone Agent"))
 phone = Phone(device, DATA_DIR / "calibration.json", screen,

@@ -49,7 +49,7 @@ the repository-root weights and does not download any model. Configure the proce
 ```env
 HIDAGENT_YOLO_MODEL=/data/best.pt
 HIDAGENT_YOLO_DEVICE=cpu
-HIDAGENT_YOLO_IMGSZ=640
+HIDAGENT_YOLO_IMGSZ=960
 # For the xyq 148-class model, set HIDAGENT_YOLO_IMGSZ=960.
 # Or: HIDAGENT_YOLO_DEVICE=nvidia
 ```
@@ -66,10 +66,22 @@ Restart the server after changing model files or environment variables; weights 
 loaded once and are not hot-reloaded. Only load trusted `.pt` files: PyTorch checkpoints
 can execute code. Review Ultralytics/model licensing before redistribution.
 
-Inference parameters: `imgsz=HIDAGENT_YOLO_IMGSZ` (default 640), `conf=0.25`,
+Inference parameters: `imgsz=HIDAGENT_YOLO_IMGSZ` (default 960), `conf=0.25`,
 `iou=0.7`, class-aware NMS. Input size must be a multiple of 32 from 32 to 4096.
-Use 960 initially for the xyq 148-class model, matching training; benchmark CPU
-latency rather than assuming the same speed as 640.
+Use 960 for the xyq 148-class model; benchmark CPU latency rather than assuming
+the same speed as 640. Existing deployments explicitly setting 640 must change
+the environment to 960 and recreate/restart the server.
+
+Preprocessing preserves original pixels and aspect ratio: first center the RGB
+image on a square canvas of side `max(width,height)`, filled with `(114,114,114)`.
+Odd padding puts the extra pixel on the right/bottom. Pass that square PIL image to
+Ultralytics, which performs its own proportional resize to 960. There is no manual
+stretch or resize. Verified with Ultralytics 8.3.40 and a model forward pre-hook:
+1920x888, 888x1920 and 1921x888 inputs each reached the model as `[1,3,960,960]`.
+Ultralytics `boxes.xyxy` are already restored to the padded canvas size: subtract
+only left/top padding, clamp to original width/height, and discard zero-area boxes.
+Do not rescale those coordinates again. Web and OCR still use original-image
+pixels; raw screenshots and class mappings (including map_entry=77) are unchanged.
 `GET /api/detection` returns `{image, width, height, boxes, elapsed_ms}`: image is
 base64 JPEG, boxes contain `{class_id, class_name, confidence, xyxy}` in original pixels.
 The image is sensitive screen data, just like `/api/frame.jpg`; keep both server

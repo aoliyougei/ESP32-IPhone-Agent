@@ -20,7 +20,7 @@ class DetectionBusy(DetectionError):
 
 
 class Detector:
-    def __init__(self, path: Path, device: str = "cpu", imgsz: str | int = 640):
+    def __init__(self, path: Path, device: str = "cpu", imgsz: str | int = 960):
         self.path, self.device, self.imgsz = path, device, imgsz
         self.lock = threading.Lock()
         self.model = None
@@ -57,12 +57,23 @@ class Detector:
             started = time.perf_counter()
             with Image.open(io.BytesIO(frame)) as source:
                 image = source.convert("RGB")
-            result = self.model.predict(image, imgsz=size, conf=0.25, iou=0.7, agnostic_nms=False,
+            side = max(image.size)
+            left, top = (side - image.width) // 2, (side - image.height) // 2
+            padded = Image.new("RGB", (side, side), (114, 114, 114))
+            padded.paste(image, (left, top))
+            result = self.model.predict(padded, imgsz=size, conf=0.25, iou=0.7, agnostic_nms=False,
                                         device="cuda:0" if self.device == "nvidia" else "cpu", verbose=False)[0]
-            boxes = [{"class_id": int(cls), "class_name": self.model.names[int(cls)],
-                      "confidence": float(conf), "xyxy": xyxy}
-                     for cls, conf, xyxy in zip(result.boxes.cls.tolist(), result.boxes.conf.tolist(),
-                                               result.boxes.xyxy.tolist(), strict=True)]
+            boxes = []
+            for cls, conf, xyxy in zip(result.boxes.cls.tolist(), result.boxes.conf.tolist(),
+                                       result.boxes.xyxy.tolist(), strict=True):
+                # Ultralytics has already restored padded-image pixels; subtract padding only.
+                x1, y1, x2, y2 = xyxy
+                restored = [max(0, min(image.width, x1 - left)), max(0, min(image.height, y1 - top)),
+                            max(0, min(image.width, x2 - left)), max(0, min(image.height, y2 - top))]
+                if restored[2] <= restored[0] or restored[3] <= restored[1]:
+                    continue  # Predictions wholly inside padding have no original-image area.
+                boxes.append({"class_id": int(cls), "class_name": self.model.names[int(cls)],
+                              "confidence": float(conf), "xyxy": restored})
             return {"width": image.width, "height": image.height, "boxes": boxes,
                     "elapsed_ms": round((time.perf_counter() - started) * 1000, 1)}
         except DetectionError:

@@ -9,6 +9,14 @@
 - Product name: ESP32 Agent.
 - `server/` is legacy and no longer needed.
 
+## v0.1.28
+
+- Legacy Server: preserve original image proportions and center on an RGB (114,114,114) square canvas before YOLO inference; default input size is now 960.
+- Restore detections by subtracting canvas padding only, clamp to original image bounds and discard padding-only boxes. Do not scale returned Ultralytics coordinates twice.
+- Preserve original screenshots, OCR coordinates and model class mappings, including map_entry=77. Existing deployments explicitly configured at 640 must set HIDAGENT_YOLO_IMGSZ=960.
+- Verify real model forward tensors are [1,3,960,960] on Ultralytics 8.3.40 for landscape, portrait and odd-size frames; add a reproducible opt-in real-weight check.
+- Validate 116 Python tests and five frontend tests. Publish CPU Server images under v0.1.28 and test; weights are not bundled, package metadata remains 0.1.20. No game-image accuracy guarantee or Manager changes.
+
 ## v0.1.27
 
 - Legacy Server: add CPU-only RapidOCR reading of map_entry, quest_panel and every valid dialog_option region from the same original YOLO frame.

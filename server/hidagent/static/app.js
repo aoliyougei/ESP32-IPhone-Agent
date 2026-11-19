@@ -287,7 +287,8 @@ function positionDetections() {
 function drawOCR() {
   const result = detecting ? detectionResult?.ocr : null;
   $("ocr-results").hidden = !result;
-  for (const [name, id] of [["map_entry", "ocr-map"], ["quest_panel", "ocr-quest"], ["dialog_option", "ocr-dialog"]]) {
+  for (const [name, id] of [["map_entry", "ocr-map"], ["quest_panel", "ocr-quest"],
+    ["dialog_option", "ocr-dialog"], ["battle_round_counter", "ocr-round"]]) {
     const target = $(id); target.replaceChildren();
     if (!result) continue;
     const regions = result.regions.filter(region => region.class_name === name);

@@ -25,6 +25,7 @@ test('YOLO switches modes, aligns boxes and rejects late results', async () => {
         return route.fulfill({ json: { image, width: 200, height: 100,
           elapsed_ms: 20, ocr: { enabled: true, error: mode === 'ocr-error' ? 'OCR unavailable' : null, skipped: 0,
             regions: mode === 'empty' ? [] : [
+              { class_name: 'battle_round_counter', source_xyxy: [10, 0, 80, 10], lines: [{ text: '第十二回合', confidence: .93 }] },
               { class_name: 'map_entry', lines: [{ text: '长安城 123,456', confidence: .92 }] },
               { class_name: 'quest_panel', lines: [{ text: '<img src=x onerror=alert(1)>任务', confidence: .85 }] },
               { class_name: 'dialog_option', source_xyxy: [10, 60, 180, 80], lines: [{ text: '第二个选项', confidence: .9 }] },
@@ -61,9 +62,15 @@ test('YOLO switches modes, aligns boxes and rejects late results', async () => {
     assert.equal(await page.locator('#ocr-quest img').count(), 0);
     assert.match(await page.locator('#ocr-dialog').textContent(), /第一个选项.*第二个选项/);
     assert.equal(await page.locator('#ocr-dialog b').count(), 0);
+    assert.match(await page.locator('#ocr-round').textContent(), /第十二回合.*93%/);
     await page.locator('[data-lang="zh"]').click();
     await page.waitForFunction(() => document.getElementById('detection-overlay').textContent.includes('正面'));
     assert.match(await page.locator('#detection-overlay').textContent(), /成就按钮.*new_label/);
+    assert.match(await page.locator('#ocr-results').textContent(), /战斗回合/);
+    const labels = await page.evaluate(() => ['battle_round_counter', 'kongdu_chan_master_npc',
+      'bodhi_patriarch_npc', 'bull_demon_king_npc', 'lijing_npc', 'old_shrimp_npc', 'qin_qiong_npc',
+      'zhenyuan_daxian_npc'].map(name => YOLO_LABELS_ZH[name]));
+    assert.deepEqual(labels, ['战斗回合计数', '空度禅师', '菩提祖师', '牛魔王', '李靖', '老虾', '秦琼', '镇元大仙']);
     await page.locator('#grid-toggle').click();
     for (const landscape of [false, true]) {
       await page.evaluate(value => document.body.classList.toggle('landscape', value), landscape);
@@ -84,6 +91,7 @@ test('YOLO switches modes, aligns boxes and rejects late results', async () => {
     await page.waitForFunction(() => document.querySelectorAll('#detection-overlay rect').length === 0);
     await page.waitForFunction(() => !document.getElementById('ocr-map').textContent.includes('长安城'));
     assert.doesNotMatch(await page.locator('#ocr-dialog').textContent(), /选项/);
+    assert.doesNotMatch(await page.locator('#ocr-round').textContent(), /第十二回合/);
     mode = 'error';
     await page.waitForFunction(() => document.getElementById('detection-status').textContent.includes('Model missing'));
     await page.waitForFunction(() => document.getElementById('live').naturalWidth === 200);

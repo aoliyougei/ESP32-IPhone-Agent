@@ -1,6 +1,9 @@
 // UI strings and plain-language step descriptions, in English and Simplified Chinese.
 // Display-only translations keyed by model names, never by training-dependent IDs.
 const YOLO_LABELS_ZH = {
+  battle_round_counter: '战斗回合计数', kongdu_chan_master_npc: '空度禅师', bodhi_patriarch_npc: '菩提祖师',
+  bull_demon_king_npc: '牛魔王', lijing_npc: '李靖', old_shrimp_npc: '老虾', qin_qiong_npc: '秦琼',
+  zhenyuan_daxian_npc: '镇元大仙',
   achievement_button: '成就按钮', action_button: '动作按钮', attack_button: '普通场景攻击按钮',
   back: '背面候选角色', front: '正面候选角色',
   battle_attack_button: '战斗攻击按钮', battle_auto_button: '战斗自动按钮', battle_away_button: '战斗暂离按钮',
@@ -55,7 +58,7 @@ const YOLO_LABELS_ZH = {
 };
 const I18N = {
   en: {
-    ocrMap: 'Map information · CPU OCR', ocrQuest: 'Task text · CPU OCR', ocrDialog: 'Dialogue options · CPU OCR',
+    ocrMap: 'Map information · CPU OCR', ocrQuest: 'Task text · CPU OCR', ocrDialog: 'Dialogue options · CPU OCR', ocrRound: 'Battle round · CPU OCR',
     ocrNoRegion: 'Region not detected', ocrEmpty: 'No text recognized', ocrDisabled: 'OCR disabled',
     ocrError: 'OCR failed', ocrSkipped: 'Skipped OCR regions',
     detectionToggle: "YOLO detection", detectionLoading: "Detecting…", detectionError: "Detection failed",
@@ -86,7 +89,7 @@ const I18N = {
       "Open Settings and go to Wi-Fi", "Open Notes and write \"hello\""],
   },
   zh: {
-    ocrMap: '地图信息 · CPU 文字识别', ocrQuest: '任务文字 · CPU 文字识别', ocrDialog: '对话选项 · CPU 文字识别',
+    ocrMap: '地图信息 · CPU 文字识别', ocrQuest: '任务文字 · CPU 文字识别', ocrDialog: '对话选项 · CPU 文字识别', ocrRound: '战斗回合 · CPU 文字识别',
     ocrNoRegion: '未检测到对应区域', ocrEmpty: '未识别到文字', ocrDisabled: '文字识别已禁用',
     ocrError: '文字识别失败', ocrSkipped: '跳过的文字识别区域',
     detectionToggle: "YOLO 检测", detectionLoading: "检测中…", detectionError: "检测失败",

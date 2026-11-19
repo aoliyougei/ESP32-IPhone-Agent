@@ -9,6 +9,13 @@
 - Product name: ESP32 Agent.
 - `server/` is legacy and no longer needed.
 
+## v0.1.29
+
+- Legacy Server: add CPU OCR of battle_round_counter regions by class name, exposing raw text, recognition scores and original/crop coordinates without integer parsing or automatic actions.
+- Add a battle-round Web result panel and Chinese display names for the eight new 156-class model labels, including old_shrimp_npc as 老虾. New NPC body classes do not trigger OCR.
+- Preserve existing map, task and dialogue OCR and square-padded 960 inference. Validate 117 Python tests and five frontend tests; real 156-class weights and battle-round screenshot accuracy have not been verified.
+- Build CPU Server image v0.1.29. Manager is unchanged; YOLO weights are not bundled and Python package metadata remains 0.1.20.
+
 ## v0.1.28
 
 - Legacy Server: preserve original image proportions and center on an RGB (114,114,114) square canvas before YOLO inference; default input size is now 960.

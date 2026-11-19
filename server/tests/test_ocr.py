@@ -91,6 +91,22 @@ def test_all_dialog_options_are_read_and_keep_source_boxes(monkeypatch):
     assert all(r['class_name'] == 'dialog_option' for r in result['regions'])
 
 
+def test_battle_round_counter_by_name_excludes_npcs(monkeypatch):
+    reader, engine, _ = setup_engine(monkeypatch)
+    engine.return_value = ([[[], '第十二回合', .93]], None)
+    counter = box('battle_round_counter')
+    counter['class_id'] = 148
+    result = reader.read(image_bytes(), [counter, box('old_shrimp_npc'), box('lijing_npc')])
+    assert len(result['regions']) == 1
+    region = result['regions'][0]
+    assert region['class_name'] == 'battle_round_counter'
+    assert region['source_xyxy'] == counter['xyxy']
+    assert region['lines'] == [{'text': '第十二回合', 'confidence': .93}]
+    counter['class_id'] = 200  # Matching follows names, not a training-dependent ID.
+    assert len(reader.read(image_bytes(), [counter])['regions']) == 1
+    assert engine.call_count == 2
+
+
 def test_disabled(monkeypatch):
     from hidagent.ocr import RegionOCR
     assert RegionOCR(enabled=False).read(image_bytes(), [box('map_entry')])['enabled'] is False

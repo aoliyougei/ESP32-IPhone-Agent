@@ -9,6 +9,12 @@
 - Product name: ESP32 Agent.
 - `server/` is legacy and no longer needed.
 
+## v0.1.30
+
+- Legacy Server: add Chinese display names for the 60 appended classes (IDs 156–215), covering all 216 names in XYQ-CLASSES.md while preserving existing translations and model-owned class identities.
+- Add a mapping regression test. OCR targets, inference preprocessing and phone controls are unchanged; newly translated classes do not automatically trigger OCR.
+- CPU Server images: v0.1.30 and test. Manager is unchanged; weights are not bundled and Python package metadata remains 0.1.20.
+
 ## v0.1.29
 
 - Legacy Server: add CPU OCR of battle_round_counter regions by class name, exposing raw text, recognition scores and original/crop coordinates without integer parsing or automatic actions.

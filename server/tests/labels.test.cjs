@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-// Registry IDs 156–215; names remain runtime/model-owned, not index-owned.
+// Registry IDs 156–218; names remain runtime/model-owned, not index-owned.
 const expected = {
   shop_description_panel: '店铺简介信息框',
   battle_artifact_button: '战斗法宝按钮',
@@ -32,14 +32,15 @@ const expected = {
   scene_auto_reset_button: '普通场景自动重置按钮',
   scene_auto_cancel_button: '普通场景自动取消按钮',
   scene_auto_collapse_button: '普通场景自动折叠按钮',
+  tianyan_tongfu: '天眼通符', nver_hong: '女儿红', hugu_jiu: '虎骨酒',
 };
 
-test('all 60 appended registry labels have Chinese display names', () => {
+test('all 63 appended registry labels have Chinese display names', () => {
   const source = fs.readFileSync(path.join(__dirname, '../hidagent/static/i18n.js'), 'utf8');
   const labels = vm.runInNewContext(source.split('const I18N')[0] + '\nJSON.stringify(YOLO_LABELS_ZH)',
     { document: { documentElement: { lang: 'zh' } }, localStorage: { getItem: () => null } });
   const actual = JSON.parse(labels);
-  assert.equal(Object.keys(expected).length, 60);
+  assert.equal(Object.keys(expected).length, 63);
   for (const [name, translation] of Object.entries(expected)) assert.equal(actual[name], translation, name);
   assert.equal(actual.old_shrimp_npc, '老虾');
   assert.equal(actual.battle_round_counter, '战斗回合计数');

@@ -9,6 +9,12 @@
 - Product name: ESP32 Agent.
 - `server/` is legacy and no longer needed.
 
+## v0.1.31
+
+- Legacy Server: add Chinese display names for tianyan_tongfu (天眼通符), nver_hong (女儿红), and hugu_jiu (虎骨酒), covering all 219 registered classes (IDs 0–218).
+- Extend mapping regression coverage; detection, OCR targets and phone controls are unchanged.
+- CPU Server images: v0.1.31, test and latest. Manager is unchanged; YOLO weights are not bundled and Python package metadata remains 0.1.20.
+
 ## v0.1.30
 
 - Legacy Server: add Chinese display names for the 60 appended classes (IDs 156–215), covering all 216 names in XYQ-CLASSES.md while preserving existing translations and model-owned class identities.

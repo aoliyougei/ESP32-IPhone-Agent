@@ -1,7 +1,7 @@
 // UI strings and plain-language step descriptions, in English and Simplified Chinese.
 // Display-only translations keyed by model names, never by training-dependent IDs.
 const YOLO_LABELS_ZH = {
-  // Appended registry classes 156–215 (XYQ-CLASSES.md); display only, not OCR targets.
+  // Appended registry classes 156–218 (XYQ-CLASSES.md); display only, not OCR targets.
   shop_description_panel: '店铺简介信息框', battle_artifact_button: '战斗法宝按钮',
   battle_special_skill_button: '战斗特技按钮', battle_summon_button: '战斗召唤按钮',
   battle_auto_remaining_rounds: '战斗剩余自动回合数', didun_gui_npc: '地遁鬼',
@@ -21,6 +21,7 @@ const YOLO_LABELS_ZH = {
   changanjiudian_screen: '长安酒店场景屏风', scene_auto_away_button: '普通场景自动暂离按钮',
   scene_auto_reset_button: '普通场景自动重置按钮', scene_auto_cancel_button: '普通场景自动取消按钮',
   scene_auto_collapse_button: '普通场景自动折叠按钮',
+  tianyan_tongfu: '天眼通符', nver_hong: '女儿红', hugu_jiu: '虎骨酒',
   battle_round_counter: '战斗回合计数', kongdu_chan_master_npc: '空度禅师', bodhi_patriarch_npc: '菩提祖师',
   bull_demon_king_npc: '牛魔王', lijing_npc: '李靖', old_shrimp_npc: '老虾', qin_qiong_npc: '秦琼',
   zhenyuan_daxian_npc: '镇元大仙',

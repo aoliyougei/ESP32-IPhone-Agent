@@ -2,6 +2,7 @@
 
 import asyncio
 import base64
+import math
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -10,7 +11,7 @@ from typing import Literal
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from .agent import Agent
 from .debug import Trace
@@ -26,6 +27,7 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 DEBUG = os.environ.get("HIDAGENT_DEBUG") == "1"
 
 detection_task = None
+ocr_task = None
 region_ocr = RegionOCR(enabled=os.environ.get("HIDAGENT_OCR", "1") == "1")
 
 detector = Detector(Path(os.environ.get("HIDAGENT_YOLO_MODEL", DATA_DIR / "best.pt")),
@@ -61,6 +63,18 @@ class Static(StaticFiles):
 
 
 app.mount("/static", Static(directory=Path(__file__).parent / "static"), name="static")
+
+
+class OCRRegion(BaseModel):
+    region: tuple[float, float, float, float]
+
+    @model_validator(mode="after")
+    def valid_region(self):
+        x1, y1, x2, y2 = self.region
+        if (not all(math.isfinite(v) and 0 <= v <= 1 for v in self.region)
+                or x1 >= x2 or y1 >= y2):
+            raise ValueError("region must be [left, top, right, bottom] within 0..1 with positive area")
+        return self
 
 
 class Point(BaseModel):
@@ -110,6 +124,33 @@ def frame():
     if not screen.live:
         raise HTTPException(404, "no live screen: start screen mirroring on the phone")
     return Response(screen.frame, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+
+
+@app.post("/api/ocr/region")
+async def ocr_region(request: OCRRegion):
+    global ocr_task
+    if ocr_task is not None and not ocr_task.done():
+        raise HTTPException(409, "Region OCR is busy; retry shortly")
+    if not region_ocr.enabled:
+        raise HTTPException(503, "OCR is disabled")
+    if not screen.live or not screen.frame:
+        raise HTTPException(404, "No live screen")
+    shot = screen.frame
+
+    def infer():
+        try:
+            result = region_ocr.read_region(shot, request.region)
+        except Exception as e:
+            raise HTTPException(503, "OCR frame processing failed; check server logs") from e
+        if result["error"]:
+            raise HTTPException(503, result["error"])
+        if not screen.live:
+            raise HTTPException(404, "No live screen")
+        return JSONResponse(result, headers={"Cache-Control": "no-store"})
+
+    ocr_task = asyncio.create_task(asyncio.to_thread(infer))
+    ocr_task.add_done_callback(lambda task: task.exception() if not task.cancelled() else None)
+    return await asyncio.shield(ocr_task)
 
 
 @app.get("/api/detection")

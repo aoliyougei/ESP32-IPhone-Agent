@@ -128,7 +128,7 @@ def create_app(db_path, admin_token):
     async def console(server_id: str, path: str, request: Request):
         static_paths = {"static/style.css", "static/app.js", "static/i18n.js"}
         actions = {"tap", "double_tap", "swipe", "scroll", "type", "key", "home", "back",
-                   "calibrate/start", "calibrate/finish", "agent", "agent/stop", "agent/clear"}
+                   "calibrate/start", "calibrate/finish", "agent", "agent/stop", "agent/clear", "ocr/region"}
         allowed = (path in {"", "api/status", "api/frame.jpg", "api/detection"} | static_paths
                    or re.fullmatch(r"api/steps/[0-9]+\.jpg", path)) if request.method == "GET" else (
                        path in {"api/" + action for action in actions})

@@ -9,6 +9,13 @@
 - Product name: ESP32 Agent.
 - `server/` is legacy and no longer needed.
 
+## v0.1.33
+
+- Legacy Server: add POST /api/ocr/region for on-demand CPU OCR on normalized original-frame rectangles without YOLO. Validate finite 0..1 coordinates and positive area; use exact pixel crops without extra margins.
+- Serialize shared OCR engine access, retain the busy gate after client cancellation, return raw text, scores, original dimensions and crop coordinates, and handle missing frames, disabled/unavailable OCR and invalid requests.
+- Manager: allow POST proxying of /api/ocr/region for saved servers. Document direct and proxied calls; existing YOLO OCR targets are unchanged.
+- Validate 130 Server Python tests, six Server frontend tests, 14 Manager Python tests, one Manager browser test and Ruff checks. Build Server CPU and Manager images with v0.1.33, test and latest tags; weights remain external and package metadata remains unchanged.
+
 ## v0.1.32
 
 - Legacy Server: extend CPU OCR to shop_description_panel, battle_auto_remaining_rounds, shop_item_option and shop_item_attribute_popup, retaining the existing four targets and raw text, scores and original/crop coordinates.

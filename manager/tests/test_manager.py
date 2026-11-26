@@ -102,6 +102,11 @@ def test_console_routes_rewrite_and_isolate_devices(client):
         response = client.get(prefix + "/api/detection?123")
         assert response.status_code == 409
         assert calls[-1].url.path == "/api/detection"
+        response = client.post(prefix + "/api/ocr/region", json={"region": [0, 0, 1, 1]})
+        assert response.status_code == 409
+        assert calls[-1].url.path == "/api/ocr/region"
+        assert calls[-1].content == b'{"region":[0,0,1,1]}'
+        assert client.get(prefix + "/api/ocr/region").status_code == 404
         count = len(calls)
         assert client.post(prefix + "/api/raw", json={}).status_code == 404
         assert client.get(prefix + "/api/tap").status_code == 404

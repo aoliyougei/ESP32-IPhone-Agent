@@ -89,6 +89,33 @@ and Manager on a trusted network. Responses are not cached or saved to disk.
 No independent game-screenshot accuracy or real-device latency is guaranteed;
 training-set scores in `yolov8n/xyq-model-integration.md` are not deployment metrics.
 
+## On-demand region OCR without YOLO
+
+`POST /api/ocr/region` reads the latest mirrored screenshot directly, without
+loading YOLO or enabling detection. Keep `HIDAGENT_OCR=1` and install the OCR extra
+(or use a CPU/NVIDIA inference image). No saved region or Web selection UI is required.
+
+```bash
+curl -X POST http://SERVER:8890/api/ocr/region \
+  -H 'Content-Type: application/json' \
+  -d '{"region":[0.10,0.20,0.50,0.35]}'
+```
+
+`region` is `[left, top, right, bottom]` in normalized original screenshot
+coordinates (not browser coordinates): finite values within 0..1, positive area.
+Left/top round down and right/bottom round up to pixels. There is no extra margin.
+Response: `width`, `height`, pixel `xyxy`, `lines` containing `text` and `confidence`,
+`elapsed_ms`, and `error: null`. Empty text is a successful empty `lines` array.
+Errors: 422 invalid region, 404 no live screenshot, 409 another region request is
+running, 503 OCR disabled/unavailable or processing failed. Responses are not cached.
+Client cancellation does not release the busy gate until the worker completes.
+YOLO OCR and this endpoint serialize use of the shared CPU engine. Recognition
+scores are not correctness guarantees; this endpoint does not click or parse text.
+
+Through an updated Manager use
+`POST /servers/{server_id}/api/ocr/region` with the same body. Older Manager images
+must be updated to proxy this route. Layout/rotation changes may require new coordinates.
+
 ## CPU OCR: selected map, task, dialogue, battle and shop regions
 
 When YOLO detection is enabled, RapidOCR reads `map_entry` (map name and

@@ -4,6 +4,7 @@ import io
 import logging
 import math
 import time
+from threading import Lock
 
 from PIL import Image
 
@@ -18,11 +19,27 @@ class RegionOCR:
         self.enabled = enabled
         self.engine = None
         self.init_error = None
+        self.lock = Lock()
 
     def read(self, frame: bytes, boxes: list[dict]) -> dict:
+        with self.lock:
+            return self._read(frame, [box for box in boxes if box.get("class_name") in TARGETS])
+
+    def read_region(self, frame: bytes, region: tuple) -> dict:
+        with Image.open(io.BytesIO(frame)) as image:
+            width, height = image.size
+        coords = [math.floor(region[0] * width), math.floor(region[1] * height),
+                  math.ceil(region[2] * width), math.ceil(region[3] * height)]
+        with self.lock:
+            result = self._read(frame, [{"class_name": "custom_region", "xyxy": coords}], margin=0)
+        error = result["error"] or (result["regions"][0]["error"] if result["regions"] else None)
+        return {"width": width, "height": height, "xyxy": coords, "error": error,
+                "lines": result["regions"][0]["lines"] if result["regions"] else [],
+                "elapsed_ms": result["elapsed_ms"]}
+
+    def _read(self, frame: bytes, targets: list[dict], margin: int = 4) -> dict:
         started = time.perf_counter()
         output = {"enabled": self.enabled, "regions": [], "error": None, "skipped": 0, "elapsed_ms": 0.0}
-        targets = [box for box in boxes if box.get("class_name") in TARGETS]
         if not self.enabled or not targets:
             return output
         try:
@@ -51,10 +68,10 @@ class RegionOCR:
                     continue
                 x1, y1, x2, y2 = coords
                 # A small margin avoids cutting edge strokes, bounded to the original frame.
-                crop_box = [max(0, min(image.width, math.floor(x1) - 4)),
-                            max(0, min(image.height, math.floor(y1) - 4)),
-                            max(0, min(image.width, math.ceil(x2) + 4)),
-                            max(0, min(image.height, math.ceil(y2) + 4))]
+                crop_box = [max(0, min(image.width, math.floor(x1) - margin)),
+                            max(0, min(image.height, math.floor(y1) - margin)),
+                            max(0, min(image.width, math.ceil(x2) + margin)),
+                            max(0, min(image.height, math.ceil(y2) + margin))]
                 if crop_box[2] <= crop_box[0] or crop_box[3] <= crop_box[1]:
                     output["skipped"] += 1
                     continue

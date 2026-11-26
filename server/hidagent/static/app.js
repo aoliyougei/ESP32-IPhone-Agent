@@ -288,11 +288,13 @@ function drawOCR() {
   const result = detecting ? detectionResult?.ocr : null;
   $("ocr-results").hidden = !result;
   for (const [name, id] of [["map_entry", "ocr-map"], ["quest_panel", "ocr-quest"],
-    ["dialog_option", "ocr-dialog"], ["battle_round_counter", "ocr-round"]]) {
+    ["dialog_option", "ocr-dialog"], ["battle_round_counter", "ocr-round"],
+    ["shop_description_panel", "ocr-shop-description"], ["battle_auto_remaining_rounds", "ocr-auto-rounds"],
+    ["shop_item_option", "ocr-shop-items"], ["shop_item_attribute_popup", "ocr-shop-attributes"]]) {
     const target = $(id); target.replaceChildren();
     if (!result) continue;
     const regions = result.regions.filter(region => region.class_name === name);
-    if (name === "dialog_option") regions.sort((a, b) => {
+    if (name === "dialog_option" || name === "shop_item_option") regions.sort((a, b) => {
       const x = a.source_xyxy ?? a.xyxy, y = b.source_xyxy ?? b.xyxy;
       return x[1] - y[1] || x[0] - y[0];
     });

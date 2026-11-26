@@ -89,13 +89,18 @@ and Manager on a trusted network. Responses are not cached or saved to disk.
 No independent game-screenshot accuracy or real-device latency is guaranteed;
 training-set scores in `yolov8n/xyq-model-integration.md` are not deployment metrics.
 
-## CPU OCR: map, task tracker, NPC dialogue options and battle round
+## CPU OCR: selected map, task, dialogue, battle and shop regions
 
 When YOLO detection is enabled, RapidOCR reads `map_entry` (map name and
 coordinates at the top left), `quest_panel` (the right-side task tracker), and
-**every detected `dialog_option`** (NPC dialogue option), and `battle_round_counter`
-(battle round text, class 148 in the 156-class model). Matching uses class names,
-not fixed IDs. Battle round output remains raw text and scores, not a parsed integer.
+**every detected `dialog_option`** (NPC dialogue option), `battle_round_counter`
+(battle round text), `shop_description_panel` (shop description),
+`battle_auto_remaining_rounds` (remaining automatic rounds), and **every detected
+`shop_item_option`** (shop item option), and `shop_item_attribute_popup`
+(item attribute popup). Matching uses class names, not fixed IDs.
+Output remains raw text and scores, without parsing coordinates or round integers.
+More detected item options mean
+more CPU OCR work per frame; every valid target is processed without a region cap.
 The seven added NPC classes are display-only and do not trigger OCR. `dialog_close_button`,
 NPC body classes, `current_task_panel` and all other classes are excluded.
 Dialogue body text outside an option box is not recognized. OCR runs on the exact
@@ -103,8 +108,8 @@ original JPEG used for detection, not the 960/640 resized tensor or the annotate
 preview. Crops have a four-pixel margin clamped to frame bounds. Text detection,
 direction classification and recognition run on each crop to support multiple lines.
 
-The four panels below the preview show raw recognized lines and recognition scores.
-Dialogue options appear top-to-bottom, with left-to-right ordering for equal top
+The eight panels below the preview show raw recognized lines and recognition scores.
+Dialogue and shop item options appear top-to-bottom, with left-to-right ordering for equal top
 coordinates, independently of YOLO confidence ordering. Each option remains a
 separate region, including empty/error results.
 Coordinates are not parsed into X/Y values. Recognition scores are not calibrated

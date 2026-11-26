@@ -9,6 +9,13 @@
 - Product name: ESP32 Agent.
 - `server/` is legacy and no longer needed.
 
+## v0.1.32
+
+- Legacy Server: extend CPU OCR to shop_description_panel, battle_auto_remaining_rounds, shop_item_option and shop_item_attribute_popup, retaining the existing four targets and raw text, scores and original/crop coordinates.
+- Add four Web result groups; sort shop item options top-to-bottom then left-to-right, render text safely and clear missing results. No integer parsing or automatic actions; every valid target is processed, increasing per-frame CPU work with more regions.
+- Validate 118 Python tests, six frontend tests and full Server Ruff checks. Actual game screenshot accuracy is not verified.
+- CPU Server images: v0.1.32, test and latest. Manager is unchanged; weights are not bundled and package metadata remains 0.1.20.
+
 ## v0.1.31
 
 - Legacy Server: add Chinese display names for tianyan_tongfu (天眼通符), nver_hong (女儿红), and hugu_jiu (虎骨酒), covering all 219 registered classes (IDs 0–218).

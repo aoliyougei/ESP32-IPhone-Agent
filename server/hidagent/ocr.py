@@ -8,7 +8,9 @@ import time
 from PIL import Image
 
 log = logging.getLogger(__name__)
-TARGETS = {"map_entry", "quest_panel", "dialog_option", "battle_round_counter"}
+TARGETS = {"map_entry", "quest_panel", "dialog_option", "battle_round_counter",
+           "shop_description_panel", "battle_auto_remaining_rounds", "shop_item_option",
+           "shop_item_attribute_popup"}
 
 
 class RegionOCR:

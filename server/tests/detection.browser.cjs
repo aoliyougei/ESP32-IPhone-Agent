@@ -26,6 +26,12 @@ test('YOLO switches modes, aligns boxes and rejects late results', async () => {
           elapsed_ms: 20, ocr: { enabled: true, error: mode === 'ocr-error' ? 'OCR unavailable' : null, skipped: 0,
             regions: mode === 'empty' ? [] : [
               { class_name: 'battle_round_counter', source_xyxy: [10, 0, 80, 10], lines: [{ text: '第十二回合', confidence: .93 }] },
+              { class_name: 'shop_item_attribute_popup', lines: [{ text: '<b>气血 +100</b>', confidence: .96 }] },
+              { class_name: 'shop_description_panel', lines: [{ text: '<b>店铺简介</b>', confidence: .91 }] },
+              { class_name: 'battle_auto_remaining_rounds', lines: [{ text: '剩余自动 8 回合', confidence: .94 }] },
+              { class_name: 'shop_item_option', source_xyxy: [90, 40, 150, 60], lines: [{ text: '商品右', confidence: .9 }] },
+              { class_name: 'shop_item_option', source_xyxy: [10, 40, 70, 60], lines: [{ text: '商品左', confidence: .8 }] },
+              { class_name: 'shop_item_option', source_xyxy: [90, 10, 150, 30], lines: [{ text: '<img src=x>商品上', confidence: .95 }] },
               { class_name: 'map_entry', lines: [{ text: '长安城 123,456', confidence: .92 }] },
               { class_name: 'quest_panel', lines: [{ text: '<img src=x onerror=alert(1)>任务', confidence: .85 }] },
               { class_name: 'dialog_option', source_xyxy: [10, 60, 180, 80], lines: [{ text: '第二个选项', confidence: .9 }] },
@@ -63,6 +69,13 @@ test('YOLO switches modes, aligns boxes and rejects late results', async () => {
     assert.match(await page.locator('#ocr-dialog').textContent(), /第一个选项.*第二个选项/);
     assert.equal(await page.locator('#ocr-dialog b').count(), 0);
     assert.match(await page.locator('#ocr-round').textContent(), /第十二回合.*93%/);
+    assert.match(await page.locator('#ocr-shop-description').textContent(), /<b>店铺简介<\/b>.*91%/);
+    assert.equal(await page.locator('#ocr-shop-description b').count(), 0);
+    assert.match(await page.locator('#ocr-auto-rounds').textContent(), /剩余自动 8 回合.*94%/);
+    assert.match(await page.locator('#ocr-shop-items').textContent(), /商品上.*95%.*商品左.*80%.*商品右.*90%/);
+    assert.equal(await page.locator('#ocr-shop-items img').count(), 0);
+    assert.match(await page.locator('#ocr-shop-attributes').textContent(), /<b>气血 \+100<\/b>.*96%/);
+    assert.equal(await page.locator('#ocr-shop-attributes b').count(), 0);
     await page.locator('[data-lang="zh"]').click();
     await page.waitForFunction(() => document.getElementById('detection-overlay').textContent.includes('正面'));
     assert.match(await page.locator('#detection-overlay').textContent(), /成就按钮.*new_label/);
@@ -92,6 +105,9 @@ test('YOLO switches modes, aligns boxes and rejects late results', async () => {
     await page.waitForFunction(() => !document.getElementById('ocr-map').textContent.includes('长安城'));
     assert.doesNotMatch(await page.locator('#ocr-dialog').textContent(), /选项/);
     assert.doesNotMatch(await page.locator('#ocr-round').textContent(), /第十二回合/);
+    for (const id of ['ocr-shop-description', 'ocr-auto-rounds', 'ocr-shop-items', 'ocr-shop-attributes']) {
+      assert.doesNotMatch(await page.locator(`#${id}`).textContent(), /店铺简介|剩余自动 8|商品上|商品左|商品右|气血/);
+    }
     mode = 'error';
     await page.waitForFunction(() => document.getElementById('detection-status').textContent.includes('Model missing'));
     await page.waitForFunction(() => document.getElementById('live').naturalWidth === 200);

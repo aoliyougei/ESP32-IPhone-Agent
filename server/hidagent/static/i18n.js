@@ -80,6 +80,8 @@ const YOLO_LABELS_ZH = {
 const I18N = {
   en: {
     ocrMap: 'Map information · CPU OCR', ocrQuest: 'Task text · CPU OCR', ocrDialog: 'Dialogue options · CPU OCR', ocrRound: 'Battle round · CPU OCR',
+    ocrShopDescription: 'Shop description · CPU OCR', ocrAutoRounds: 'Remaining auto rounds · CPU OCR',
+    ocrShopItems: 'Shop items · CPU OCR', ocrShopAttributes: 'Item attributes · CPU OCR',
     ocrNoRegion: 'Region not detected', ocrEmpty: 'No text recognized', ocrDisabled: 'OCR disabled',
     ocrError: 'OCR failed', ocrSkipped: 'Skipped OCR regions',
     detectionToggle: "YOLO detection", detectionLoading: "Detecting…", detectionError: "Detection failed",
@@ -111,6 +113,8 @@ const I18N = {
   },
   zh: {
     ocrMap: '地图信息 · CPU 文字识别', ocrQuest: '任务文字 · CPU 文字识别', ocrDialog: '对话选项 · CPU 文字识别', ocrRound: '战斗回合 · CPU 文字识别',
+    ocrShopDescription: '店铺简介 · CPU 文字识别', ocrAutoRounds: '剩余自动回合数 · CPU 文字识别',
+    ocrShopItems: '商品选项 · CPU 文字识别', ocrShopAttributes: '商品属性 · CPU 文字识别',
     ocrNoRegion: '未检测到对应区域', ocrEmpty: '未识别到文字', ocrDisabled: '文字识别已禁用',
     ocrError: '文字识别失败', ocrSkipped: '跳过的文字识别区域',
     detectionToggle: "YOLO 检测", detectionLoading: "检测中…", detectionError: "检测失败",

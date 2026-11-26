@@ -107,6 +107,28 @@ def test_battle_round_counter_by_name_excludes_npcs(monkeypatch):
     assert engine.call_count == 2
 
 
+def test_shop_and_auto_regions_keep_text_scores_and_boxes(monkeypatch):
+    reader, engine, factory = setup_engine(monkeypatch)
+    names = ['shop_description_panel', 'battle_auto_remaining_rounds', 'shop_item_option',
+             'shop_item_attribute_popup']
+    targets = [box(name) for name in names]
+    targets += [box('shop_item_option', (10, y, 80, y + 5)) for y in range(10, 70, 5)]
+    for target in targets:
+        target['class_id'] = 999  # OCR follows names, not model-specific IDs.
+    engine.return_value = ([[[], '<b>商品 123</b>', .93]], None)
+    result = reader.read(image_bytes(), targets + [box('shop_close_button'), box('old_shrimp_npc')])
+    assert len(result['regions']) == len(targets)
+    assert engine.call_count == len(targets)
+    for region, target in zip(result['regions'], targets, strict=True):
+        assert region['class_name'] == target['class_name']
+        assert region['source_xyxy'] == target['xyxy']
+        assert region['lines'] == [{'text': '<b>商品 123</b>', 'confidence': .93}]
+    assert result['regions'][0]['xyxy'] == [6, 16, 84, 74]
+    assert factory.call_args.kwargs['det_use_cuda'] is False
+    assert factory.call_args.kwargs['cls_use_cuda'] is False
+    assert factory.call_args.kwargs['rec_use_cuda'] is False
+
+
 def test_disabled(monkeypatch):
     from hidagent.ocr import RegionOCR
     assert RegionOCR(enabled=False).read(image_bytes(), [box('map_entry')])['enabled'] is False

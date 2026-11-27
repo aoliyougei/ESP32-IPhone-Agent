@@ -112,7 +112,7 @@ test("actions execute without approval, preserve serialization and block server 
     const app = load(dir);
     await app.configure("http://127.0.0.1:8890");
     const tools = app.tools;
-    assert.deepEqual([...tools.keys()], ["phone_status", "phone_screenshot", "phone_action"]);
+    assert.deepEqual([...tools.keys()], ["phone_status", "phone_ocr_region", "phone_screenshot", "phone_action"]);
     globalThis.fetch = async url => {
       const path = new URL(String(url)).pathname;
       calls.push(path);

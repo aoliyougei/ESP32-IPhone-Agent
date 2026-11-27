@@ -52,6 +52,29 @@ export class PhoneClient {
   status(signal?: AbortSignal) { return this.request('/api/status', undefined, signal); }
   async screenshot(signal?: AbortSignal): Promise<Buffer> { return this.request('/api/frame.jpg', undefined, signal, true); }
 
+  async ocrRegion(region: unknown, signal?: AbortSignal) {
+    if (!Array.isArray(region) || region.length !== 4
+        || !region.every(value => Number.isFinite(value) && value >= 0 && value <= 1)
+        || region[0] >= region[2] || region[1] >= region[3]) {
+      throw new Error('region must be [left, top, right, bottom] within 0..1 with positive area');
+    }
+    const data = await this.request('/api/ocr/region', { region }, signal);
+    const invalid = () => { throw new Error('/api/ocr/region: Invalid region OCR response'); };
+    if (!data || !Number.isSafeInteger(data.width) || data.width <= 0
+        || !Number.isSafeInteger(data.height) || data.height <= 0
+        || !Array.isArray(data.xyxy) || data.xyxy.length !== 4 || !data.xyxy.every(Number.isSafeInteger)
+        || data.xyxy[0] < 0 || data.xyxy[1] < 0 || data.xyxy[2] <= data.xyxy[0] || data.xyxy[3] <= data.xyxy[1]
+        || data.xyxy[2] > data.width || data.xyxy[3] > data.height
+        || (data.error !== null && typeof data.error !== 'string') || !Array.isArray(data.lines)
+        || !Number.isFinite(data.elapsed_ms) || data.elapsed_ms < 0) invalid();
+    const lines = data.lines.map((line: any) => {
+      if (!line || typeof line.text !== 'string' || !Number.isFinite(line.confidence)
+          || line.confidence < 0 || line.confidence > 1) invalid();
+      return { text: line.text, confidence: line.confidence };
+    });
+    return { width: data.width, height: data.height, xyxy: data.xyxy, error: data.error, lines, elapsed_ms: data.elapsed_ms };
+  }
+
   async detection(signal?: AbortSignal) {
     const data = await this.request('/api/detection', undefined, signal, false, 12 * 1024 * 1024);
     const invalid = () => { throw new Error('/api/detection: Invalid detection response'); };
